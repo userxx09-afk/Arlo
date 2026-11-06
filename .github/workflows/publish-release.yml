@@ -1,0 +1,42 @@
+# Makes a GitHub release from the app already in the repo (downloads/BAN.apk), so it can be
+# downloaded with a normal link: .../releases/latest/download/BAN.apk
+# Run it from the Actions tab: "Publish BAN release" > Run workflow. Works from a phone browser.
+name: Publish BAN release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the version and check the APK
+        id: v
+        run: |
+          name=$(jq -r .versionName downloads/latest.json)
+          want=$(jq -r .sha256 downloads/latest.json)
+          have=$(sha256sum downloads/BAN.apk | cut -d' ' -f1)
+          if [ "$want" != "$have" ]; then
+            echo "::error::downloads/BAN.apk doesn't match the sha256 in downloads/latest.json"
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          jq -r .notes downloads/latest.json > notes.txt
+          printf '\n\n**Install:** on the phone, tap **BAN.apk** below and open the download. If Android asks, allow installs from your browser. After this, BAN updates itself.\n\nNeeds Android 8 or newer.\n' >> notes.txt
+
+      - name: Publish (or refresh) the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.v.outputs.name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" downloads/BAN.apk --clobber
+          else
+            gh release create "$TAG" downloads/BAN.apk --title "BAN ${{ steps.v.outputs.name }} for Android" --notes-file notes.txt --latest
+          fi
+          echo "Download: https://github.com/${{ github.repository }}/releases/latest/download/BAN.apk" >> "$GITHUB_STEP_SUMMARY"
