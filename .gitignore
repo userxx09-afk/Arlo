@@ -13,3 +13,4 @@ android/signing.properties
 *.apk
 *.keystore
 *.jks
+!downloads/BAN.apk
