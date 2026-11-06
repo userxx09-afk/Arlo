@@ -6,11 +6,12 @@ import time
 from datetime import datetime
 
 import secrets
+from datetime import timedelta
 
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
-                   send_from_directory, url_for)
+                   send_from_directory, session, url_for)
 
-from . import arlo_login, config, events, garystv, liveview, notify, store
+from . import arlo_login, config, events, garystv, liveview, notify, remote, store
 
 app = Flask(__name__, template_folder="templates")
 
@@ -22,6 +23,50 @@ def init_secret():
         store.set_setting("web_secret", key)
     app.secret_key = key
 recorder = None  # set by main.py
+app.permanent_session_lifetime = timedelta(days=365)
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
+
+# --- away from home: visits through the Cloudflare tunnel must sign in ---------
+OPEN_OUTSIDE = {"login", "login_submit", "static", "manifest"}
+
+
+@app.before_request
+def _outside_needs_login():
+    if not remote.is_remote(request) or request.endpoint in OPEN_OUTSIDE:
+        return None
+    if remote.enabled() and session.get("remote") == remote.stamp():
+        return None
+    wants_page = request.method == "GET" and not request.path.startswith(("/api/", "/media/", "/live/", "/ban.apk", "/photo", "/cameras.json", "/health"))
+    if wants_page:
+        return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
+    return Response("Sign in first", 401)
+
+
+@app.get("/login")
+def login():
+    nxt = request.args.get("next") or "/"
+    return render_template("login.html", next=nxt if nxt.startswith("/") else "/", enabled=remote.enabled(),
+                           error=None, user="")
+
+
+@app.post("/login")
+def login_submit():
+    nxt = request.form.get("next") or "/"
+    nxt = nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
+    ip, user = remote.client_ip(request), request.form.get("user", "")
+    if remote.check(ip, user, request.form.get("password", "")):
+        session.permanent = True
+        session["remote"] = remote.stamp()
+        return redirect(nxt)
+    error = ("Too many wrong tries. Wait 15 minutes and try again." if remote.locked(ip)
+             else "That name and password don't match.")
+    return render_template("login.html", next=nxt, enabled=remote.enabled(), error=error, user=user), 401
+
+
+@app.get("/logout")
+def logout():
+    session.pop("remote", None)
+    return redirect(url_for("login"))
 
 
 def _auth(fn):
@@ -224,7 +269,8 @@ def connect_state():
 @_auth
 def settings():
     return render_template("settings.html", s=notify.current(), sms_ready=notify.sms_ready(),
-                           results=None)
+                           results=None, remote=remote.settings(), remote_on=remote.enabled(),
+                           outside=remote.is_remote(request))
 
 
 @app.post("/settings/number")
@@ -286,6 +332,24 @@ def _apply_form():
     notify.save(s)
 
 
+@app.post("/settings/remote")
+@_auth
+def remote_settings():
+    user, pw = request.form.get("remote_user", "").strip(), request.form.get("remote_password", "")
+    if request.form.get("action") == "off":
+        remote.turn_off()
+        flash("Away-from-home access is off. Outside visits are turned away.", "ok")
+    elif not user or len(pw) < 8:
+        flash("Enter a name and a password of at least 8 characters.", "error")
+    else:
+        remote.set_login(user, pw)
+        if remote.is_remote(request):
+            session.permanent = True
+            session["remote"] = remote.stamp()   # don't sign yourself out
+        flash("Saved. Away from home, sign in with that name and password (once per phone or browser).", "ok")
+    return redirect(url_for("settings") + "#remote")
+
+
 @app.post("/settings")
 @_auth
 def save_settings():
@@ -299,7 +363,8 @@ def save_settings():
 def test_alert():
     _apply_form()  # test what's on screen
     return render_template("settings.html", s=notify.current(), sms_ready=notify.sms_ready(),
-                           results=notify.send_test())
+                           results=notify.send_test(), remote=remote.settings(), remote_on=remote.enabled(),
+                           outside=remote.is_remote(request))
 
 
 @app.route("/clip/<path:key>")

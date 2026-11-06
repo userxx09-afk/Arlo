@@ -55,6 +55,20 @@
   {% endif %}
 </section>
 
+<section class="panel" id="remote">
+  <h2>🌎 Away from home</h2>
+  <p>Visits from outside the home (through the Cloudflare tunnel) must sign in with this name and password. At home, nobody has to sign in, and GarysTV keeps working as before.</p>
+  {% if remote_on %}<p class="muted" style="margin-top:-6px">✅ On, for “{{ remote.user }}”. Changing the password signs everyone out.</p>
+  {% else %}<p class="muted" style="margin-top:-6px">⚠️ No password yet, so outside visits are turned away.</p>{% endif %}
+  <form method="post" action="{{ url_for('remote_settings') }}">
+    <div class="field"><label>Name</label><input type="text" name="remote_user" value="{{ remote.user or 'barb' }}" autocapitalize="none" autocomplete="off"></div>
+    <div class="field"><label>{{ 'New password' if remote_on else 'Password' }}</label><input type="password" name="remote_password" minlength="8" autocomplete="new-password" placeholder="at least 8 characters"></div>
+    <div class="actions"><button class="primary" name="action" value="save">{{ 'Change password' if remote_on else 'Turn on' }}</button>
+      {% if remote_on %}<button class="danger" name="action" value="off" formnovalidate onclick="return confirm('Turn off away-from-home access?')">Turn off</button>{% endif %}
+      {% if outside %}<a class="btn" href="{{ url_for('logout') }}">Sign out</a>{% endif %}</div>
+  </form>
+</section>
+
 <form method="post" action="{{ url_for('save_settings') }}">
 <section class="panel">
   <h2>Text message account (Twilio)</h2>

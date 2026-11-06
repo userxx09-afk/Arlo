@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sign in · BAN{% endblock %}
+{% block style %}
+  .tabbar, .topbar .nav { display:none !important; }
+  .signin { max-width:400px; margin:40px auto; text-align:center; }
+  .signin img { width:96px; height:96px; }
+  .signin h1 { font-size:24px; margin:10px 0 4px; }
+  .signin p { color:var(--muted); margin:0 0 18px; }
+  .signin form { display:flex; flex-direction:column; gap:10px; text-align:left; }
+  .signin input { width:100%; }
+  .signin button { padding:11px; font-size:16px; }
+  :root { --tabbar:0px !important; }
+{% endblock %}
+{% block body %}
+<div class="signin">
+  <img src="{{ url_for('static', filename='ban.svg') }}" alt="">
+  <h1>Barb's Arlo Notifications</h1>
+  {% if enabled %}
+  <p>Sign in to see the cameras from away from home. This phone or browser stays signed in.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('login_submit') }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <input type="text" name="user" value="{{ user }}" placeholder="Name" autocomplete="username" autocapitalize="none" required autofocus>
+    <input type="password" name="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="primary">Sign in</button>
+  </form>
+  {% else %}
+  <p>Away-from-home access isn't set up yet. At home, open BAN, go to <b>Alerts</b>, and set a name and password under “Away from home”.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -45,6 +45,7 @@ public class MotionService extends Service {
     static volatile String state = "Starting…";
 
     private volatile boolean running;
+    private volatile boolean signInNeeded;
     private Thread worker;
     private volatile HttpURLConnection conn;
     private ConnectivityManager.NetworkCallback netCallback;
@@ -52,6 +53,11 @@ public class MotionService extends Service {
     static void start(Context c) {
         Intent i = new Intent(c, MotionService.class);
         if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i); else c.startService(i);
+    }
+
+    /** Reconnect now (e.g. right after signing in). */
+    static void kick(Context c) {
+        if (Prefs.notify(c)) start(c);
     }
 
     static void stop(Context c) {
@@ -87,6 +93,10 @@ public class MotionService extends Service {
         if (!Prefs.notify(this)) {
             stopSelf();
             return START_NOT_STICKY;
+        }
+        if (worker != null && worker.isAlive()) {
+            dropConnection();
+            worker.interrupt();   // skip the wait before the next try
         }
         if (worker == null || !worker.isAlive()) {
             running = true;
@@ -152,7 +162,15 @@ public class MotionService extends Service {
                 c.setRequestProperty("Accept", "text/event-stream");
                 String auth = Prefs.authHeader(base);
                 if (auth != null) c.setRequestProperty("Authorization", auth);
+                String cookie = Prefs.cookie(base);
+                if (cookie != null) c.setRequestProperty("Cookie", cookie);
                 int code = c.getResponseCode();
+                if (code == 401) {
+                    setState("Open BAN and sign in, so it can watch for motion away from home.");
+                    signInNeeded = true;
+                    throw new Exception("needs sign-in");
+                }
+                signInNeeded = false;
                 if (code != 200) throw new Exception("server answered " + code);
                 setState("Watching for motion · " + Prefs.bare(base));
                 backoff = 2000;
@@ -161,7 +179,7 @@ public class MotionService extends Service {
             } catch (Exception e) {
                 if (!running) break;
                 Log.i(TAG, "events: " + e);
-                setState("Can't reach " + Prefs.bare(base) + " right now. Retrying… (home Wi-Fi or TapperVPN needed)");
+                if (!signInNeeded) setState("Can't reach " + Prefs.bare(base) + " right now. Retrying…");
                 try { Thread.sleep(backoff); } catch (InterruptedException ie) { if (!running) break; }
                 backoff = Math.min(backoff * 2, 60000);
             } finally {
@@ -256,6 +274,8 @@ public class MotionService extends Service {
             c.setReadTimeout(10000);
             String auth = Prefs.authHeader(base);
             if (auth != null) c.setRequestProperty("Authorization", auth);
+            String cookie = Prefs.cookie(base);
+            if (cookie != null) c.setRequestProperty("Cookie", cookie);
             if (c.getResponseCode() != 200) return null;
             try (InputStream in = c.getInputStream()) { return BitmapFactory.decodeStream(in); }
         } catch (Exception e) {

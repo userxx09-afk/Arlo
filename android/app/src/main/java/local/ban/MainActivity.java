@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
     private boolean offline;
+    private String lastUrl;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -86,6 +87,12 @@ public class MainActivity extends Activity {
             load(getIntent());
             startNotifications();
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        CookieManager.getInstance().flush();
     }
 
     @Override
@@ -136,7 +143,7 @@ public class MainActivity extends Activity {
         pad.addView(box);
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(first ? "Welcome to BAN" : "Server address")
-                .setMessage("The address of Arlo Keeper on your home server. On the home Wi-Fi it's usually " + Prefs.DEFAULT_SERVER + ".")
+                .setMessage("Where BAN lives. " + Prefs.DEFAULT_SERVER + " works at home and away (sign in once). On the home Wi-Fi you can also use " + Prefs.HOME_SERVER + ".")
                 .setView(pad)
                 .setCancelable(!first)
                 .setPositiveButton("Connect", (d, w) -> {
@@ -189,9 +196,10 @@ public class MainActivity extends Activity {
                 + "a{display:block;margin:14px auto;max-width:280px;padding:13px;border-radius:999px;font-weight:700;text-decoration:none;"
                 + "background:#ff7a1a;color:#1a0d00}a.s{background:#0e1a2e;color:#eef3fb;border:1px solid #22385c}</style></head><body>"
                 + "<div style='font-size:54px'>🔔</div><h2>Can't reach BAN</h2>"
-                + "<p>" + escape(Prefs.bare(server())) + " isn't answering.<br>Is the phone on the home Wi-Fi, or is TapperVPN on?</p>"
+                + "<p>" + escape(Prefs.bare(server())) + " isn't answering.<br>Check the phone's internet connection.</p>"
                 + "<p style='font-size:12px'>" + escape(why) + "</p>"
                 + "<a href='#' onclick='BANApp.retry();return false'>Try again</a>"
+                + (server().equals(Prefs.HOME_SERVER) ? "" : "<a class=s href='#' onclick='BANApp.useHome();return false'>Use the home Wi-Fi address</a>")
                 + "<a class=s href='#' onclick='BANApp.changeServer();return false'>Server address…</a></body></html>";
         web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
     }
@@ -208,6 +216,16 @@ public class MainActivity extends Activity {
             if (u.getHost() != null && u.getHost().equals(home.getHost())) return false;
             try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) {}
             return true;
+        }
+
+        @Override
+        public void onPageFinished(WebView v, String url) {
+            // Just signed in (left the sign-in page): save the cookie and reconnect for alerts.
+            if (lastUrl != null && lastUrl.contains("/login") && !url.contains("/login")) {
+                CookieManager.getInstance().flush();
+                MotionService.kick(MainActivity.this);
+            }
+            lastUrl = url;
         }
 
         @Override
@@ -259,6 +277,14 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void changeServer() { runOnUiThread(() -> askServer(false)); }
 
         @JavascriptInterface public void retry() { runOnUiThread(() -> load(null)); }
+
+        @JavascriptInterface public void useHome() {
+            runOnUiThread(() -> {
+                Prefs.setServer(MainActivity.this, Prefs.HOME_SERVER);
+                load(null);
+                MotionService.kick(MainActivity.this);
+            });
+        }
 
         @JavascriptInterface public boolean batteryOk() {
             PowerManager pm = getSystemService(PowerManager.class);

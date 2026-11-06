@@ -7,7 +7,9 @@ import android.util.Base64;
 
 /** The few things BAN remembers: where Arlo Keeper is, and whether to notify. */
 final class Prefs {
-    static final String DEFAULT_SERVER = "http://10.0.0.156:8090";
+    static final String DEFAULT_SERVER = "https://ban.tapper.co";
+    /** Arlo Keeper on the home network, for when Cloudflare can't be reached. */
+    static final String HOME_SERVER = "http://10.0.0.156:8090";
 
     private Prefs() {}
 
@@ -53,6 +55,16 @@ final class Prefs {
         Uri u = Uri.parse(url);
         if (u.getUserInfo() == null) return url;
         return url.replaceFirst("://[^@/]*@", "://");
+    }
+
+    /** The sign-in cookie the page set (away from home), for the app's own requests. */
+    static String cookie(String url) {
+        try {
+            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+            return cm.getCookie(bare(url));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** "Basic ..." header if the address has user:password@ in it, else null. */

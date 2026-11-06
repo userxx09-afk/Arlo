@@ -18,6 +18,13 @@ android/   BAN for Android: the web page laid out for a phone, plus motion notif
 - Lays itself out for a phone with a bottom tab bar.
 - The photo at the top: tap it to change it, or put `photo-default.jpg` in `server/app/static/`.
 
+## Away from home
+
+Remote access goes through a Cloudflare Tunnel (no port forwarding). Requests that arrive through
+the tunnel (they carry `Cf-Connecting-IP`) must sign in; set the name and password at home on
+**Alerts → Away from home**. Until one is set, outside visits are turned away. At home nothing
+needs a sign-in, so other apps on the home network (GarysTV) keep working.
+
 ## Server
 
 See [server/README.md](server/README.md). On Ubuntu: `sudo bash server/deploy/install.sh`
@@ -25,7 +32,7 @@ See [server/README.md](server/README.md). On Ubuntu: `sudo bash server/deploy/in
 
 ## Android app
 
-See [android/README.md](android/README.md). `android\build.ps1` builds a signed APK and copies
+Download the latest APK from [Releases](../../releases). See [android/README.md](android/README.md). `android\build.ps1` builds a signed APK and copies
 it to the server, where the Alerts page offers it (`/ban.apk`) to Android phones.
 
 The app keeps one connection open to `GET /api/events` (server-sent events) and posts a
