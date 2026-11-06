@@ -222,46 +222,49 @@ def active_numbers_or_channel(s):
     return bool(notify.active_numbers(s) or notify.has_any_channel(s))
 
 
-# --- Arlo sign-in ------------------------------------------------------------
+# --- Arlo accounts and sign-in ------------------------------------------------
 @app.get("/connect")
 @_auth
 def connect():
-    user = (store.get_setting("arlo_login") or {}).get("username") or config.ARLO_USERNAME
-    return render_template("connect.html", saved_user=user, login=arlo_login.state,
-                           status=recorder.status if recorder else {})
+    return render_template("connect.html", accounts=recorder.accounts_view() if recorder else [])
 
 
 @app.post("/connect")
 @_auth
 def connect_submit():
+    """Add an account, or retry one with a new password."""
     user = request.form.get("username", "").strip()
     pw = request.form.get("password", "")
     if not user or not pw:
         flash("Enter both the Arlo email and password.", "error")
         return redirect(url_for("connect"))
-    if recorder and recorder.status.get("connected"):
-        flash("Already connected. Restart the service to sign in as someone else.", "info")
-        return redirect(url_for("connect"))
-    arlo_login.save_credentials(user, pw)
-    flash("Signing in to Arlo…", "ok")
+    recorder.add(user, pw)
+    flash(f"Signing in to Arlo as {user}…", "ok")
     return redirect(url_for("connect"))
 
 
-@app.post("/connect/code")
+@app.post("/connect/<aid>/code")
 @_auth
-def connect_code():
-    arlo_login.submit_code(request.form.get("code", ""))
+def connect_code(aid):
+    arlo_login.submit_code(aid, request.form.get("code", ""))
     flash("Code sent to Arlo.", "ok")
+    return redirect(url_for("connect"))
+
+
+@app.post("/connect/<aid>/signout")
+@_auth
+def connect_signout(aid):
+    a = arlo_login.get(aid)
+    recorder.sign_out(aid)
+    flash(f"Signed out of {a['username'] if a else 'that account'}. Its saved clips are still here.", "ok")
     return redirect(url_for("connect"))
 
 
 @app.get("/connect/state")
 @_auth
 def connect_state():
-    s = recorder.status if recorder else {}
-    return jsonify({"waiting_for_code": arlo_login.state["waiting_for_code"],
-                    "connected": bool(s.get("connected")), "signing_in": bool(s.get("signing_in")),
-                    "error": s.get("error")})
+    return jsonify([{k: a[k] for k in ("id", "connected", "signing_in", "waiting_for_code", "error")}
+                    for a in (recorder.accounts_view() if recorder else [])])
 
 
 # --- notification settings ---------------------------------------------------
@@ -535,7 +538,7 @@ def api_live_start(cam_id):
     cam = recorder.camera(cam_id) if recorder else None
     if not cam:
         return jsonify({"state": "error", "error": "That camera isn't available."}), 404
-    return jsonify(_live_json(liveview.start(recorder, cam)))
+    return jsonify(_live_json(liveview.start(recorder.owner(cam_id), cam)))
 
 
 @app.get("/api/camera/<cam_id>/live")
@@ -552,7 +555,7 @@ def api_live_mjpg(cam_id):
         cam = recorder.camera(cam_id) if recorder else None
         if not cam:
             abort(404)
-        s = liveview.start(recorder, cam)
+        s = liveview.start(recorder.owner(cam_id), cam)
     return Response(s.frames(), mimetype="multipart/x-mixed-replace; boundary=frame",
                     headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 

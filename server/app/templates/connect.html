@@ -1,59 +1,77 @@
 {% extends "base.html" %}
-{% block title %}Connect Arlo · BAN{% endblock %}
-{% block header %}<div class="meta"><span>Connect Arlo</span></div>{% endblock %}
+{% block title %}Arlo accounts · BAN{% endblock %}
+{% block header %}<div class="meta"><span>Arlo accounts</span></div>{% endblock %}
+{% block style %}
+  .acct .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .acct .top h2 { margin:0; }
+  .acct .top form { margin:0 0 0 auto; }
+  .acct .state { margin:6px 0 0; font-size:14px; color:var(--muted); }
+  .acct .state b { color:var(--ink); }
+  .ok { color:var(--green); } .bad { color:var(--danger); }
+{% endblock %}
 {% block body %}
 <div id="live">
-{% if status.connected %}
-<section class="panel">
-  <h2>✅ Connected to Arlo</h2>
-  <p>Signed in as {{ saved_user }}. {{ status.cameras|length }} camera(s) found:
-     {{ status.cameras|map(attribute='name')|join(', ') or 'none yet' }}.</p>
-  <a class="btn" href="{{ url_for('index') }}">Go to cameras</a>
-</section>
+{% for a in accounts %}
+<section class="panel acct">
+  <div class="top">
+    <h2>{% if a.connected %}<span class="ok">●</span>{% elif a.error %}<span class="bad">●</span>{% else %}<span class="muted">●</span>{% endif %} {{ a.username }}</h2>
+    <form method="post" action="{{ url_for('connect_signout', aid=a.id) }}"
+          onsubmit="return confirm('Sign out of {{ a.username }}?\nBAN stops watching its cameras and forgets its password. Clips already saved stay.')">
+      <button class="danger">Sign out</button>
+    </form>
+  </div>
 
-{% elif login.waiting_for_code %}
-<section class="panel">
-  <h2>Enter the Arlo verification code</h2>
-  <p>Arlo just sent a code to the email (or phone) on the account. Enter it within 10 minutes.</p>
-  <form class="row" method="post" action="{{ url_for('connect_code') }}">
+  {% if a.connected %}
+  <p class="state"><b>Connected.</b> {{ a.cameras|length }} camera{{ '' if a.cameras|length == 1 else 's' }}: {{ a.cameras|join(', ') or 'none' }}.
+    {% if a.shared %}<br>Also on an account above, which records {{ 'it' if a.shared|length == 1 else 'them' }}: {{ a.shared|join(', ') }}.{% endif %}</p>
+
+  {% elif a.waiting_for_code %}
+  <p class="state"><b>Enter the verification code.</b> Arlo just sent it to the email (or phone) on this account. Enter it within 10 minutes.</p>
+  <form class="row" method="post" action="{{ url_for('connect_code', aid=a.id) }}" style="margin-top:10px">
     <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required autofocus style="width:160px;font-size:20px;letter-spacing:3px">
     <button class="primary">Verify</button>
   </form>
-</section>
 
-{% elif status.signing_in %}
-<section class="panel">
-  <h2>Signing in…</h2>
-  <p>Talking to Arlo. This page updates on its own.</p>
-</section>
+  {% elif a.signing_in %}
+  <p class="state"><b>Signing in…</b> This page updates on its own.</p>
 
-{% else %}
-<section class="panel">
-  <h2>Sign in to Arlo</h2>
-  <p>Use a second Arlo account that your cameras are shared to (Arlo app → Settings → Grant Access). Arlo signs out other sessions on the same login, so this keeps your phone app signed in.</p>
-  {% if status.error %}
-  <div class="flash error">Last attempt failed: {{ status.error }}<br>
-    Check the email and password before trying again. Arlo locks sign-ins for about a day after repeated failures.</div>
-  {% endif %}
-  <form method="post" action="{{ url_for('connect_submit') }}">
-    <div class="field"><label>Arlo email</label><input type="text" name="username" value="{{ saved_user or '' }}" autocomplete="username" required></div>
-    <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
-    <div class="actions"><button class="primary">Sign in</button></div>
+  {% else %}
+  {% if a.error %}<div class="flash error" style="margin-top:10px">Sign-in failed: {{ a.error }}<br>
+    Check the password before trying again. Arlo locks sign-ins for about a day after repeated failures.</div>
+  {% else %}<p class="state">Not signed in. Enter the password to connect.</p>{% endif %}
+  <form method="post" action="{{ url_for('connect_submit') }}" style="margin-top:10px">
+    <input type="hidden" name="username" value="{{ a.username }}">
+    <div class="row"><input type="password" name="password" placeholder="Arlo password" autocomplete="current-password" required style="flex:1">
+      <button class="primary">Sign in</button></div>
   </form>
-  <p class="muted" style="margin-top:12px">The password is saved on this server so it can reconnect after a restart. After the first sign-in, Arlo usually won't ask for a code again.</p>
+  {% endif %}
 </section>
-{% endif %}
+{% endfor %}
+
+<section class="panel">
+  <h2>{{ 'Add another Arlo account' if accounts else 'Sign in to Arlo' }}</h2>
+  <p>{% if accounts %}Its cameras join the ones above. A camera both accounts can see is recorded once.{% endif %}
+     Tip: use a second Arlo login that your cameras are shared to (Arlo app → Settings → Grant Access).
+     Arlo signs out other sessions on the same login, so this keeps your phone's Arlo app signed in.</p>
+  <form method="post" action="{{ url_for('connect_submit') }}">
+    <div class="field"><label>Arlo email</label><input type="text" name="username" autocomplete="username" autocapitalize="none" required></div>
+    <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
+    <div class="actions"><button class="primary">{{ 'Add account' if accounts else 'Sign in' }}</button>
+      {% if accounts %}<a class="btn" href="{{ url_for('index') }}">Go to cameras</a>{% endif %}</div>
+  </form>
+  <p class="muted" style="margin-top:12px">Passwords are saved on this server so it can reconnect after a restart. After the first sign-in, Arlo usually won't ask for a code again.</p>
+</section>
 </div>
 <script>
-  // Refresh when sign-in moves to the next step (code needed, connected, failed).
+  // Refresh when an account's sign-in moves on (code needed, connected, failed), unless typing.
   (function () {
     let last = null;
     setInterval(async () => {
       try {
         const s = await (await fetch("{{ url_for('connect_state') }}")).json();
-        const key = [s.waiting_for_code, s.connected, s.signing_in, s.error].join("|");
-        if (last !== null && key !== last && !document.activeElement.matches("input")) location.reload();
-        if (last !== null && key !== last && s.waiting_for_code) location.reload();
+        const key = JSON.stringify(s);
+        const typing = document.activeElement && document.activeElement.matches("input");
+        if (last !== null && key !== last && (!typing || s.some((a) => a.waiting_for_code))) location.reload();
         last = key;
       } catch (e) {}
     }, 2000);

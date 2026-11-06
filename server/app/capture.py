@@ -22,6 +22,7 @@ STREAM_READY_SECONDS = 15   # how long to keep trying to connect to a waking cam
 MAX_CHAIN = 3               # back-to-back clips while motion keeps going
 LIVE_DIR = os.path.join(config.DATA_DIR, "live")  # clips as they record, for GarysTV's pop-up
 LIVE_KEEP_SECONDS = 300     # how long a finished clip's live copy stays
+_live_dir_cleared = False
 
 
 def slug(name):
@@ -95,7 +96,10 @@ class LiveCapture:
         self._last_start = {}
         self._lock = threading.Lock()
         self.live = {}  # live id -> {"path", "done"}: clips recording now (or just finished)
-        shutil.rmtree(LIVE_DIR, ignore_errors=True)
+        global _live_dir_cleared
+        if not _live_dir_cleared:   # once per start-up (there's one LiveCapture per Arlo account)
+            shutil.rmtree(LIVE_DIR, ignore_errors=True)
+            _live_dir_cleared = True
         os.makedirs(LIVE_DIR, exist_ok=True)
 
     def live_file(self, live_id):

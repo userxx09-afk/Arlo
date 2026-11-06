@@ -14,6 +14,8 @@ android/   BAN for Android: the web page laid out for a phone, plus motion notif
   Live view stops 5 s after the last viewer leaves (or after 3 minutes) to save batteries.
 - **Recordings**: newest first, grouped by day or month, filter by camera, starred only,
   select several to star or delete. New clips appear without reloading.
+- **Arlo**: one or more Arlo accounts, each with **Sign out**, plus **Add another Arlo account**.
+  A camera both accounts can see is recorded once (by the account added first).
 - **Alerts**: text messages (Twilio), ntfy, Pushover, webhook, and the phone app.
 - Lays itself out for a phone with a bottom tab bar.
 - The photo at the top: tap it to change it, or put `photo-default.jpg` in `server/app/static/`.

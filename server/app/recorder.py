@@ -68,7 +68,12 @@ def _thumb_from_video(video_path, thumb_path):
 
 
 class Recorder:
-    def __init__(self):
+    """One Arlo account: its sign-in, camera events and clip downloads (see accounts.Fleet)."""
+
+    def __init__(self, account_id="main", fleet=None):
+        self.account_id = account_id
+        self.fleet = fleet
+        self.username = None
         self.arlo = None
         self._sweep_lock = threading.Lock()
         self._sweep_timer = None
@@ -137,10 +142,12 @@ class Recorder:
     # --- lifecycle ----------------------------------------------------------
     def start(self, username, password):
         os.makedirs(config.CLIPS_DIR, exist_ok=True)
-        os.makedirs(config.STATE_DIR, exist_ok=True)
+        state_dir = arlo_login.state_dir(self.account_id)
+        os.makedirs(state_dir, exist_ok=True)
+        self.username = username
         log.info("signing in to Arlo as %s", username)
         # 2FA: the code is typed into the web page unless IMAP is configured.
-        tfa = arlo_login.WebTFA() if config.TFA_SOURCE == "console" else config.TFA_SOURCE
+        tfa = arlo_login.WebTFA(self.account_id) if config.TFA_SOURCE == "console" else config.TFA_SOURCE
         arlo = pyaarlo.PyArlo(
             username=username,
             password=password,
@@ -149,7 +156,7 @@ class Recorder:
             tfa_host=config.TFA_HOST,
             tfa_username=config.TFA_USERNAME,
             tfa_password=config.TFA_PASSWORD,
-            storage_dir=config.STATE_DIR,
+            storage_dir=state_dir,
             save_session=True,
             library_days=config.LIBRARY_DAYS,
             refresh_devices_every=3,
@@ -190,11 +197,15 @@ class Recorder:
 
     def stop(self):
         self._stop.set()
-        if self.arlo:
-            self.arlo.stop()
+        arlo, self.arlo = self.arlo, None
+        self.status.update(connected=False, cameras=[])
+        if arlo:
+            arlo.stop()
 
     # --- events -------------------------------------------------------------
     def _on_motion(self, device, attr, value):
+        if self.fleet and not self.fleet.owns(self, device.device_id):
+            return  # another account has this camera too and records it
         self._motion[device.device_id] = bool(value)
         if not value:
             return
