@@ -19,6 +19,7 @@ notification the moment a camera sees motion (updated with the picture once the 
 1. Raise the version: `$env:BAN_VERSION_CODE="4"; $env:BAN_VERSION_NAME="1.3"`, then run `build.ps1`.
 2. Copy `build\BAN.apk` to `downloads/BAN.apk` in the repo, and update `downloads/latest.json`
    (`versionCode`, `versionName`, `sha256` of the APK, `notes`). Push. Phones pick it up on their next check.
+3. Run **Actions > Publish BAN release** so the download link (`releases/latest/download/BAN.apk`) serves the new version too.
 
 ## Build
 
