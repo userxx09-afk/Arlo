@@ -81,12 +81,42 @@ public class MainActivity extends Activity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::goBack);
         }
 
-        if (Prefs.server(this) == null) {
-            askServer(true);
-        } else {
-            load(getIntent());
-            startNotifications();
-        }
+        find(getIntent());
+    }
+
+    /** Look for BAN (home first, then ban.tapper.co), then open it; ask for an address if neither answers. */
+    private void find(Intent intent) {
+        offline = true;
+        web.loadDataWithBaseURL(null, page("<div class=spin></div><h2>Finding BAN…</h2><p>Looking on the home Wi-Fi, then at "
+                + Prefs.REMOTE_SERVER.replace("https://", "") + ".</p>"), "text/html", "utf-8", null);
+        String path = intent == null ? null : intent.getStringExtra("path");
+        if (intent != null) intent.removeExtra("path");
+        new Thread(() -> {
+            String s = Discovery.find(this);
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (s == null) {
+                    askServer(true);
+                    return;
+                }
+                offline = false;
+                web.loadUrl(Prefs.bare(s) + (path == null ? "/" : path));
+                startNotifications();
+                MotionService.kick(this);
+                Updater.maybeCheck(this);
+            });
+        }, "ban-find").start();
+    }
+
+    private static String page(String body) {
+        return "<html><head><meta name=viewport content='width=device-width,initial-scale=1'><style>"
+                + "body{background:#04070d;color:#eef3fb;font-family:sans-serif;padding:48px 22px;text-align:center}"
+                + "h2{margin:18px 0 6px}p{color:#93a6c4;line-height:1.5}"
+                + ".spin{width:42px;height:42px;margin:0 auto;border-radius:50%;border:4px solid #ffffff22;border-top-color:#ff7a1a;animation:s 1s linear infinite}"
+                + "@keyframes s{to{transform:rotate(360deg)}}"
+                + "a{display:block;margin:14px auto;max-width:280px;padding:13px;border-radius:999px;font-weight:700;text-decoration:none;"
+                + "background:#ff7a1a;color:#1a0d00}a.s{background:#0e1a2e;color:#eef3fb;border:1px solid #22385c}</style></head><body>"
+                + body + "</body></html>";
     }
 
     @Override
@@ -135,22 +165,33 @@ public class MainActivity extends Activity {
     private void askServer(boolean first) {
         EditText box = new EditText(this);
         box.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        box.setText(Prefs.server(this) == null ? Prefs.DEFAULT_SERVER : Prefs.server(this));
+        String cur = Prefs.manualServer(this) != null ? Prefs.manualServer(this) : server();
+        box.setText(cur);
         box.setSelectAllOnFocus(true);
         FrameLayout pad = new FrameLayout(this);
         int dp = (int) getResources().getDisplayMetrics().density;
         pad.setPadding(22 * dp, 8 * dp, 22 * dp, 0);
         pad.addView(box);
         AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle(first ? "Welcome to BAN" : "Server address")
-                .setMessage("Where BAN lives. " + Prefs.DEFAULT_SERVER + " works at home and away (sign in once). On the home Wi-Fi you can also use " + Prefs.HOME_SERVER + ".")
+                .setTitle(first ? "Couldn't find BAN" : "Server address")
+                .setMessage(first
+                        ? "BAN didn't answer on the home Wi-Fi or at " + Prefs.REMOTE_SERVER + ". Check the phone's connection, or type BAN's address."
+                        : "BAN finds itself: home Wi-Fi first, then " + Prefs.REMOTE_SERVER + ". Type an address only if it lives somewhere else.")
                 .setView(pad)
                 .setCancelable(!first)
                 .setPositiveButton("Connect", (d, w) -> {
+                    Prefs.setManualServer(this, box.getText().toString());
                     Prefs.setServer(this, box.getText().toString());
                     Prefs.setLastEvent(this, 0);
-                    load(null);
-                    if (Prefs.notify(this)) { MotionService.stop(this); startNotifications(); }
+                    offline = false;
+                    web.loadUrl(Prefs.bare(server()) + "/");
+                    startNotifications();
+                    MotionService.kick(this);
+                })
+                .setNeutralButton(first ? "Try again" : "Find automatically", (d, w) -> {
+                    Prefs.setManualServer(this, null);
+                    Discovery.forget();
+                    find(null);
                 });
         if (!first) b.setNegativeButton("Cancel", null);
         b.show();
@@ -190,18 +231,11 @@ public class MainActivity extends Activity {
 
     private void showOffline(String why) {
         offline = true;
-        String html = "<html><head><meta name=viewport content='width=device-width,initial-scale=1'><style>"
-                + "body{background:#04070d;color:#eef3fb;font-family:sans-serif;padding:32px 22px;text-align:center}"
-                + "h2{margin:18px 0 6px}p{color:#93a6c4;line-height:1.5}"
-                + "a{display:block;margin:14px auto;max-width:280px;padding:13px;border-radius:999px;font-weight:700;text-decoration:none;"
-                + "background:#ff7a1a;color:#1a0d00}a.s{background:#0e1a2e;color:#eef3fb;border:1px solid #22385c}</style></head><body>"
-                + "<div style='font-size:54px'>🔔</div><h2>Can't reach BAN</h2>"
+        web.loadDataWithBaseURL(null, page("<div style='font-size:54px'>🔔</div><h2>Can't reach BAN</h2>"
                 + "<p>" + escape(Prefs.bare(server())) + " isn't answering.<br>Check the phone's internet connection.</p>"
                 + "<p style='font-size:12px'>" + escape(why) + "</p>"
                 + "<a href='#' onclick='BANApp.retry();return false'>Try again</a>"
-                + (server().equals(Prefs.HOME_SERVER) ? "" : "<a class=s href='#' onclick='BANApp.useHome();return false'>Use the home Wi-Fi address</a>")
-                + "<a class=s href='#' onclick='BANApp.changeServer();return false'>Server address…</a></body></html>";
-        web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
+                + "<a class=s href='#' onclick='BANApp.changeServer();return false'>Server address…</a>"), "text/html", "utf-8", null);
     }
 
     private static String escape(String s) {
@@ -276,15 +310,11 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface public void changeServer() { runOnUiThread(() -> askServer(false)); }
 
-        @JavascriptInterface public void retry() { runOnUiThread(() -> load(null)); }
+        @JavascriptInterface public void retry() { runOnUiThread(() -> { Discovery.forget(); find(null); }); }
 
-        @JavascriptInterface public void useHome() {
-            runOnUiThread(() -> {
-                Prefs.setServer(MainActivity.this, Prefs.HOME_SERVER);
-                load(null);
-                MotionService.kick(MainActivity.this);
-            });
-        }
+        @JavascriptInterface public void checkUpdate() { runOnUiThread(() -> Updater.check(MainActivity.this, false)); }
+
+        @JavascriptInterface public String updateState() { return Updater.state; }
 
         @JavascriptInterface public boolean batteryOk() {
             PowerManager pm = getSystemService(PowerManager.class);

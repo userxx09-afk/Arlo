@@ -46,6 +46,7 @@ public class MotionService extends Service {
 
     private volatile boolean running;
     private volatile boolean signInNeeded;
+    private volatile boolean rediscover = true;
     private Thread worker;
     private volatile HttpURLConnection conn;
     private ConnectivityManager.NetworkCallback netCallback;
@@ -132,7 +133,11 @@ public class MotionService extends Service {
     private void watchNetwork() {
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         netCallback = new ConnectivityManager.NetworkCallback() {
-            @Override public void onAvailable(Network network) { dropConnection(); }
+            @Override public void onAvailable(Network network) {
+                Discovery.forget();      // home <-> away: look for the best address again
+                rediscover = true;
+                dropConnection();
+            }
         };
         try { cm.registerDefaultNetworkCallback(netCallback); } catch (Exception ignored) {}
     }
@@ -151,6 +156,11 @@ public class MotionService extends Service {
     private void loop() {
         long backoff = 2000;
         while (running) {
+            if (rediscover) {
+                rediscover = false;
+                setState("Finding BAN…");
+                Discovery.findCached(this);   // home Wi-Fi first, then ban.tapper.co
+            }
             String base = server();
             try {
                 long since = Prefs.lastEvent(this);
@@ -179,7 +189,10 @@ public class MotionService extends Service {
             } catch (Exception e) {
                 if (!running) break;
                 Log.i(TAG, "events: " + e);
-                if (!signInNeeded) setState("Can't reach " + Prefs.bare(base) + " right now. Retrying…");
+                if (!signInNeeded) {
+                    setState("Can't reach " + Prefs.bare(base) + " right now. Retrying…");
+                    rediscover = true;
+                }
                 try { Thread.sleep(backoff); } catch (InterruptedException ie) { if (!running) break; }
                 backoff = Math.min(backoff * 2, 60000);
             } finally {

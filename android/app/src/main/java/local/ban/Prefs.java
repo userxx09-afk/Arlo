@@ -7,7 +7,8 @@ import android.util.Base64;
 
 /** The few things BAN remembers: where Arlo Keeper is, and whether to notify. */
 final class Prefs {
-    static final String DEFAULT_SERVER = "https://ban.tapper.co";
+    static final String REMOTE_SERVER = "https://ban.tapper.co";
+    static final String DEFAULT_SERVER = REMOTE_SERVER;
     /** Arlo Keeper on the home network, for when Cloudflare can't be reached. */
     static final String HOME_SERVER = "http://10.0.0.156:8090";
 
@@ -23,6 +24,32 @@ final class Prefs {
 
     static void setServer(Context c, String url) {
         p(c).edit().putString("server", clean(url)).apply();
+    }
+
+    /** The last address BAN answered on at home. */
+    static String localServer(Context c) {
+        return p(c).getString("local_server", null);
+    }
+
+    static void setLocalServer(Context c, String url) {
+        p(c).edit().putString("local_server", url).apply();
+    }
+
+    /** An address typed in by hand (tried after home and ban.tapper.co). */
+    static String manualServer(Context c) {
+        return p(c).getString("manual_server", null);
+    }
+
+    static void setManualServer(Context c, String url) {
+        p(c).edit().putString("manual_server", url == null ? null : clean(url)).apply();
+    }
+
+    static long lastUpdateCheck(Context c) {
+        return p(c).getLong("update_check", 0);
+    }
+
+    static void setLastUpdateCheck(Context c, long t) {
+        p(c).edit().putLong("update_check", t).apply();
     }
 
     static boolean notify(Context c) {

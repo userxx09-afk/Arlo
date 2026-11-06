@@ -11,6 +11,7 @@
     <button type="button" id="ph-test">Send a test notification</button>
     <button type="button" id="ph-batt" hidden>Let BAN run in the background</button>
     <button type="button" id="ph-server">Server address…</button>
+    <button type="button" id="ph-update" hidden>Check for updates</button>
   </div>
 </section>
 <section class="panel" id="get-app" hidden>
@@ -119,11 +120,16 @@
     const batt = A.batteryOk();
     $("#ph-batt").hidden = batt || !A.notificationsEnabled();
     $("#ph-state").textContent = (A.notificationsEnabled() ? A.connectionState() : "Notifications are off on this phone.") +
-      " · Server " + A.server() + " · App " + A.version() + (batt ? "" : " · Android may pause BAN to save battery");
+      " · Server " + A.server() + " · App " + A.version() + (A.updateState && A.updateState() ? " · " + A.updateState() : "") +
+      (batt ? "" : " · Android may pause BAN to save battery");
   }
   $("#ph-on").onchange = () => { A.setNotifications($("#ph-on").checked); setTimeout(show, 800); };
   $("#ph-batt").onclick = () => A.fixBattery();
   $("#ph-server").onclick = () => A.changeServer();
+  if (A.checkUpdate) {
+    $("#ph-update").hidden = false;
+    $("#ph-update").onclick = () => A.checkUpdate();
+  }
   $("#ph-test").onclick = async () => {
     const r = await (await fetch("/api/test-phone", { method: "POST" })).json();
     $("#ph-state").textContent = r.phones ? `Test sent to ${r.phones} phone${r.phones === 1 ? "" : "s"}. It should show up in a second.`

@@ -32,7 +32,7 @@ See [server/README.md](server/README.md). On Ubuntu: `sudo bash server/deploy/in
 
 ## Android app
 
-**Download on the phone:** [BAN.apk](https://github.com/userxx09-afk/Arlo/raw/main/downloads/BAN.apk) (version 1.1, Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. Updates install over the old version.
+**Download on the phone:** [BAN.apk](https://github.com/userxx09-afk/Arlo/raw/main/downloads/BAN.apk) (version 1.2, Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. After that, the app updates itself from this repo: it reads `downloads/latest.json` and offers the new APK.
 
 See [android/README.md](android/README.md) to build it. `android\build.ps1` builds a signed APK and copies
 it to the server, where the Alerts page offers it (`/ban.apk`) to Android phones.

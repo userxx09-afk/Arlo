@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Updates from GitHub: hands the new version to Android's installer (you confirm it) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Arlo Keeper speaks plain HTTP on the home network. -->
     <application
@@ -40,6 +42,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a connection to the user's own home camera server to show motion alerts instantly" />
         </service>
+
+        <receiver
+            android:name=".Updater$Result"
+            android:exported="false" />
 
         <receiver
             android:name=".BootReceiver"
