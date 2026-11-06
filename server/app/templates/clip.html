@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ c.camera_name }} · BAN{% endblock %}
+{% block header %}
+<div class="meta"><span>{{ c.camera_name }}</span><span>{{ c.created_ms|when }}</span></div>
+{% endblock %}
+{% block body %}
+<video controls autoplay playsinline src="{{ url_for('media', rel=c.video_path) }}"
+       {% if c.thumb_path %}poster="{{ url_for('media', rel=c.thumb_path) }}"{% endif %}></video>
+<p style="color:var(--muted);font-size:13px;margin:10px 0 0">
+  {% if c.duration_s %}{{ c.duration_s|round|int }}s · {% endif %}{{ c.size_bytes|size }}
+  {% if c.trigger %} · {{ c.trigger }}{% endif %}{% if c.object_type %} · {{ c.object_type }}{% endif %}
+  · {{ 'Base station USB' if c.source == 'base_station' else 'Arlo cloud' }}
+</p>
+<div class="actions">
+  <a class="btn" href="{{ url_for('index') }}#recordings">← All recordings</a>
+  <a class="btn" href="{{ url_for('media', rel=c.video_path) }}" download>Download</a>
+  <form method="post" action="{{ url_for('star', key=c.key) }}">
+    <input type="hidden" name="on" value="{{ '0' if c.starred else '1' }}">
+    <button>{{ '★ Unstar' if c.starred else '☆ Star (keep forever)' }}</button>
+  </form>
+  <form method="post" action="{{ url_for('delete', key=c.key) }}" onsubmit="return confirm('Delete this clip?')">
+    <button class="danger">Delete</button>
+  </form>
+</div>
+{% endblock %}

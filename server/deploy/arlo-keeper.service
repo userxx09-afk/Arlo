@@ -1,0 +1,16 @@
+[Unit]
+Description=Arlo Keeper (saves Arlo clips locally, sends alerts, web viewer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=arlo-keeper
+WorkingDirectory=/opt/arlo-keeper
+EnvironmentFile=/etc/arlo-keeper/arlo-keeper.env
+ExecStart=/opt/arlo-keeper/venv/bin/python -m app.main
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

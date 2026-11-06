@@ -1,0 +1,14 @@
+services:
+  arlo-keeper:
+    build: .
+    container_name: arlo-keeper
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: America/Chicago
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data          # clips, database, and Arlo login session live here
+    stdin_open: true          # lets you type the 2FA code on first login
+    tty: true

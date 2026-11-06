@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+{% block bodyclass %}home tab-cameras{% endblock %}
+{% block header %}
+<div class="meta wide" id="conn"></div>
+{% endblock %}
+{% block style %}
+  /* ---------- hero ---------- */
+  .hero { display:flex; align-items:center; gap:22px; margin:6px 0 4px; }
+  .hero .photo { position:relative; flex:none; width:104px; height:104px; border-radius:50%; cursor:pointer;
+                 border:3px solid var(--accent); box-shadow:0 0 30px #ff7a1a44; overflow:hidden; background:#0b1630; padding:0; }
+  .hero .photo img { width:100%; height:100%; object-fit:cover; display:block; }
+  .hero .photo span { position:absolute; inset:auto 0 0 0; font-size:10.5px; font-weight:700; text-align:center; padding:3px 0 6px;
+                      background:#000a; color:#fff; opacity:0; transition:opacity .15s; }
+  .hero .photo:hover span { opacity:1; }
+  .hero h1 { margin:0; font-size:34px; font-weight:300; line-height:1.15; }
+  .hero h1 b { font-weight:800; }
+  .hero .side { margin-left:auto; text-align:right; color:var(--muted); font-size:14px; line-height:1.6; }
+  .hero .side b { color:var(--ink); }
+  .modes { display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+  .mode { font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); letter-spacing:.02em; text-transform:none; }
+  .mode.armed { color:var(--accent2); border-color:#ff7a1a77; }
+
+  /* ---------- cameras ---------- */
+  .cams { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
+  .cam { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; }
+  .cam .shot { position:relative; aspect-ratio:16/9; background:#000 linear-gradient(160deg, #182c4e, #070c16); cursor:pointer; display:block; width:100%; border:0; padding:0; border-radius:0; }
+  .cam .shot img { width:100%; height:100%; object-fit:cover; display:block; }
+  .cam .shot .ph { position:absolute; inset:0; display:grid; place-items:center; color:var(--dim); }
+  .cam .shot .play { position:absolute; inset:0; display:grid; place-items:center; opacity:0; transition:opacity .15s; background:#0005; }
+  .cam .shot:hover .play { opacity:1; }
+  .play i { width:54px; height:54px; border-radius:50%; background:var(--accent); display:grid; place-items:center; box-shadow:0 4px 20px #0008; }
+  .pill { position:absolute; top:8px; left:8px; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px; background:#000b; color:#fff; letter-spacing:.03em; }
+  .pill.rec { background:var(--rec); } .pill.live { background:var(--accent); color:var(--accent-ink); }
+  .pill.motion { background:var(--star); color:#000; } .pill.off { background:#333b; color:#bbb; }
+  .cam .body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .cam .top { display:flex; align-items:center; gap:8px; }
+  .cam .top b { font-size:16px; }
+  .batt { margin-left:auto; font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums; }
+  .batt.low { color:var(--danger); }
+  .cam .err { color:var(--danger); font-size:13px; }
+  .cam .btns { display:flex; gap:8px; margin-top:auto; padding-top:4px; }
+  .cam .btns button { flex:1; }
+
+  /* ---------- recordings ---------- */
+  .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+  .chips { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:2px 0; max-width:100%; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex:none; }
+  .chip.on, .seg button.on, #starred.on { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .chip small { opacity:.7; font-weight:600; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; flex:none; }
+  .seg button { border:0; border-radius:0; padding:7px 14px; }
+  .group h3 { position:sticky; top:var(--stick, 62px); z-index:5; margin:18px -4px 10px; padding:8px 4px; font-size:15px; font-weight:700;
+              background:linear-gradient(#0a1424f0, #0a1424d0); backdrop-filter:blur(6px); display:flex; align-items:baseline; gap:10px; }
+  .group h3 small { color:var(--muted); font-weight:600; font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }
+  .clip { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; user-select:none; }
+  .clip:hover { border-color:#3a5687; }
+  .clip .thumb { aspect-ratio:16/9; background:#000; position:relative; }
+  .clip .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .clip .dur { position:absolute; right:6px; bottom:6px; background:#000b; color:#fff; font-size:11.5px; font-weight:700; padding:1px 6px; border-radius:5px; }
+  .clip .starb { position:absolute; left:6px; top:5px; color:var(--star); font-size:17px; text-shadow:0 1px 4px #000; }
+  .clip .info { padding:7px 10px 9px; display:flex; flex-direction:column; }
+  .clip .info b { font-size:14px; font-weight:700; }
+  .clip .info span { color:var(--muted); font-size:13px; }
+  .clip .pick { position:absolute; top:6px; right:6px; width:26px; height:26px; border-radius:50%; background:#0007; border:2px solid #fff; display:none; }
+  body.selecting .clip .pick { display:block; }
+  .clip.picked { outline:3px solid var(--accent); outline-offset:-2px; }
+  .clip.picked .pick { background:var(--accent); border-color:var(--accent); }
+  .clip.picked .pick::after { content:"✓"; color:var(--accent-ink); font-weight:900; display:block; text-align:center; line-height:22px; }
+  .empty { color:var(--muted); padding:50px 10px; text-align:center; }
+  #more { display:block; margin:20px auto 0; }
+  .newpill { position:fixed; left:50%; transform:translateX(-50%); top:76px; z-index:25; display:none; box-shadow:0 6px 24px #000a; }
+  .bulkbar { display:none; position:fixed; left:12px; right:12px; bottom:calc(12px + var(--tabbar) + env(safe-area-inset-bottom)); z-index:28;
+             max-width:900px; margin:0 auto; padding:10px 12px; background:var(--panel2); border:1px solid var(--line);
+             border-radius:14px; box-shadow:0 8px 30px #000b; align-items:center; gap:8px; flex-wrap:wrap; }
+  body.selecting .bulkbar { display:flex; }
+  body.selecting #select { background:var(--ink); color:var(--bg); }
+
+  /* ---------- player and live view ---------- */
+  .modal { position:fixed; inset:0; z-index:50; background:#02050b; display:none; flex-direction:column; }
+  .modal.open { display:flex; }
+  .modal .mhead { display:flex; align-items:center; gap:10px; padding:12px 16px; padding-top:max(12px, env(safe-area-inset-top)); }
+  .modal .mhead .t { min-width:0; }
+  .modal .mhead b { display:block; font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .modal .mhead span { color:var(--muted); font-size:13px; }
+  .modal .stage { flex:1; min-height:0; display:grid; place-items:center; padding:0 12px; position:relative; }
+  .modal .stage video, .modal .stage img.live { max-width:100%; max-height:100%; width:auto; border-radius:10px; background:#000; display:block; }
+  .modal .stage img.live { min-width:min(100%, 640px); aspect-ratio:16/9; object-fit:contain; }
+  .modal .mfoot { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:12px 16px; padding-bottom:max(14px, env(safe-area-inset-bottom)); }
+  .x { width:40px; height:40px; padding:0; font-size:20px; flex:none; }
+  .over { position:absolute; inset:0; display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; text-align:center; padding:20px; color:var(--muted); pointer-events:none; }
+  .over button { pointer-events:auto; }
+  .spin { width:42px; height:42px; border-radius:50%; border:4px solid #ffffff22; border-top-color:var(--accent); animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .livebadge { display:inline-flex; align-items:center; gap:6px; font-weight:800; color:var(--accent2); }
+  .livebadge i { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 50% { opacity:.3; } }
+  .nav-arrow { position:absolute; top:50%; transform:translateY(-50%); width:46px; height:46px; padding:0; font-size:22px; background:#0e1a2ecc; }
+  .nav-arrow.prev { left:16px; } .nav-arrow.next { right:16px; }
+
+  .section { scroll-margin-top:70px; }
+  @media (max-width:700px) {
+    .hero { gap:14px; margin:2px 0 0; }
+    .hero .photo { width:70px; height:70px; }
+    .hero h1 { font-size:22px; }
+    .hero .side { display:none; }
+    .cams { grid-template-columns:1fr; gap:12px; }
+    .grid { grid-template-columns:repeat(2, 1fr); gap:8px; }
+    .clip .info { padding:6px 8px 7px; }
+    .clip .info b { font-size:13px; }
+    .clip .info span { font-size:12px; }
+    body.tab-cameras #recordings, body.tab-recordings #cameras, body.tab-recordings .hero { display:none; }
+    body.tab-recordings h2.sec { margin-top:4px; }
+    body.tab-recordings #prompts { display:none; }
+    .toolbar { gap:6px; }
+    .toolbar .chips { width:100%; }
+    .toolbar .spacer, #sync { display:none; }
+    .toolbar > button, .seg button { padding:6px 12px; font-size:13.5px; }
+    .group h3 { --stick:56px; }
+    .nav-arrow { display:none; }
+    .newpill { top:66px; }
+    .modal .stage { padding:0; }
+    .modal .stage video, .modal .stage img.live { border-radius:0; }
+  }
+{% endblock %}
+{% block body %}
+<div class="hero">
+  <button class="photo" id="photo" title="Change picture"><img id="photo-img" src="{{ url_for('photo') }}" alt=""><span>Change</span></button>
+  <div><h1><span id="greet">Hello.</span> <b>Here's what your cameras saw.</b></h1></div>
+  <div class="side" id="side"></div>
+  <input type="file" id="photo-file" accept="image/*" hidden>
+</div>
+
+<div id="prompts"></div>
+
+<section class="section" id="cameras">
+  <h2 class="sec">Cameras <span class="modes" id="modes"></span></h2>
+  <div class="cams" id="cams"><div class="empty">Loading cameras…</div></div>
+</section>
+
+<section class="section" id="recordings">
+  <h2 class="sec">Recordings</h2>
+  <div class="toolbar">
+    <div class="chips" id="chips"></div>
+    <span class="spacer"></span>
+    <div class="seg" id="groupby"><button data-g="day" class="on">Day</button><button data-g="month">Month</button></div>
+    <button id="starred" title="Starred clips are kept forever">★ Starred</button>
+    <button id="select">Select</button>
+    <button id="sync" title="Check Arlo for any clips that were missed">Sync</button>
+  </div>
+  <div id="groups"></div>
+  <button id="more" hidden>Show older</button>
+</section>
+
+<button class="primary newpill" id="newpill">New clips · Show</button>
+
+<div class="bulkbar" id="bulkbar">
+  <b id="selcount">0 selected</b>
+  <button id="selall">Select all</button>
+  <span class="spacer"></span>
+  <button id="bstar" disabled>★ Star</button>
+  <button id="bunstar" disabled>Unstar</button>
+  <button id="bdelete" class="danger" disabled>Delete</button>
+  <button id="seldone">Done</button>
+</div>
+
+<div class="modal" id="player">
+  <div class="mhead"><div class="t"><b id="p-title"></b><span id="p-sub"></span></div><span class="spacer"></span><button class="x" id="p-close" title="Close">✕</button></div>
+  <div class="stage"><video id="p-video" controls playsinline autoplay></video>
+    <button class="nav-arrow prev" id="p-prev" title="Newer">‹</button><button class="nav-arrow next" id="p-next" title="Older">›</button></div>
+  <div class="mfoot">
+    <button id="p-newer">‹ Newer</button>
+    <button id="p-star">☆ Star</button>
+    <a class="btn" id="p-dl" download>Download</a>
+    <button id="p-del" class="danger">Delete</button>
+    <button id="p-older">Older ›</button>
+  </div>
+</div>
+
+<div class="modal" id="live">
+  <div class="mhead"><div class="t"><b id="l-title"></b><span id="l-sub"></span></div><span class="spacer"></span><button class="x" id="l-close" title="Close">✕</button></div>
+  <div class="stage"><img class="live" id="l-img" alt="">
+    <div class="over" id="l-over"><div class="spin"></div><div id="l-msg">Waking up the camera…</div></div></div>
+  <div class="mfoot">
+    <button id="l-record">● Record a clip</button>
+    <button id="l-again" class="primary" hidden>▶ Keep watching</button>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script id="cfg" type="application/json">{{ {"inApp": in_app}|tojson }}</script>
+<script>
+{% raw %}
+(function () {
+  const $ = (s, el = document) => el.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const api = async (path, opts = {}) => {
+    const r = await fetch(path, { headers: opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...opts });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && !j.error) j.error = `The server answered ${r.status}`;
+    return j;
+  };
+  const PAGE = 60;
+  const st = { cams: [], clipCams: [], clips: [], offset: 0, done: false, camera: "", group: "day", starred: false,
+               selecting: false, picked: new Set(), loading: false, status: null };
+  try { st.group = localStorage.getItem("ban.group") || "day"; } catch (e) {}
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("camera")) st.camera = qs.get("camera");
+
+  // ---------- time ----------
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const tm = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  function dayLabel(d) {
+    const now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+    if (sameDay(d, now)) return "Today";
+    if (sameDay(d, y)) return "Yesterday";
+    return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
+  }
+  const monthLabel = (d) => d.toLocaleDateString([], { month: "long", year: "numeric" });
+  function ago(sec) {
+    if (!sec) return "not yet";
+    const s = Math.max(0, Math.floor(Date.now() / 1000 - sec));
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86400)}d ago`;
+  }
+  const size = (b) => { const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return `${b.toFixed(i < 2 ? 0 : 1)} ${u[i]}`; };
+  const h = new Date().getHours();
+  $("#greet").textContent = h < 12 ? "Good morning." : h < 17 ? "Good afternoon." : "Good evening.";
+
+  // ---------- phone tabs ----------
+  function setTab(tab) {
+    if (!["cameras", "recordings"].includes(tab)) tab = "cameras";
+    document.body.classList.toggle("tab-cameras", tab === "cameras");
+    document.body.classList.toggle("tab-recordings", tab === "recordings");
+    document.querySelectorAll("[data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+  }
+  function onHash() {
+    const tab = location.hash.slice(1);
+    setTab(tab);
+    if (window.innerWidth > 700 && tab) document.getElementById(tab)?.scrollIntoView({ behavior: "smooth" });
+    else window.scrollTo(0, 0);
+  }
+  window.addEventListener("hashchange", onHash);
+  setTab(location.hash.slice(1));
+
+  // ---------- status and cameras ----------
+  async function loadStatus() {
+    const s = await api("/api/status").catch(() => null);
+    if (!s || s.error) return;
+    st.status = s; st.cams = s.cameras || []; st.clipCams = s.clip_cameras || [];
+    $("#conn").innerHTML = `<span><span class="dot" style="background:${s.connected ? "var(--green)" : "var(--danger)"}"></span>${s.connected ? "Connected to Arlo" : esc(s.error || "Not connected")}</span>`;
+    $("#side").innerHTML = `<b>${s.stats.count}</b> clips · ${size(s.stats.bytes)}<br>${s.last_sweep ? `Checked Arlo ${ago(s.last_sweep)}` : ""}`;
+    $("#modes").innerHTML = Object.values(s.modes || {}).filter((m, i, a) => a.indexOf(m) === i)
+      .map((m) => `<span class="mode ${/arm/i.test(m) ? "armed" : ""}" title="Arlo mode. Cameras only report motion when armed.">${esc(m)}</span>`).join("");
+    renderPrompts(s); renderCams(); renderChips();
+    clearTimeout(loadStatus.t);
+    loadStatus.t = setTimeout(loadStatus, st.cams.some((c) => c.capturing || c.viewing || c.motion) ? 3000 : 15000);
+  }
+
+  function renderPrompts(s) {
+    let html = "";
+    if (s.needs_login && !s.connected) html += `<div class="prompt"><h2>Connect your Arlo account</h2><p>${s.error ? "Sign-in failed: " + esc(s.error) : "Sign in once so new recordings can be saved here."}</p><a class="btn primary" href="/connect">Sign in to Arlo</a></div>`;
+    else if (s.signing_in) html += `<div class="prompt"><h2>Signing in to Arlo…</h2><p><a href="/connect" style="text-decoration:underline">Open the sign-in page</a> if Arlo asks for a code.</p></div>`;
+    if (s.alerts_need_setup && !window.BANApp) html += `<div class="prompt"><h2>Who should get a text when a camera sees motion?</h2>
+      <p>Enter a phone number, or install the BAN app on your phone for notifications.</p>
+      <form class="row" method="post" action="/settings/number"><input type="hidden" name="next" value="/settings">
+      <input type="tel" name="number" placeholder="(773) 555-0123" autocomplete="tel" required>
+      <input type="text" name="label" placeholder="Name (optional)" style="width:160px"><button class="primary">Add number</button></form></div>`;
+    $("#prompts").innerHTML = html;
+  }
+
+  const camIcon = `<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`;
+  const playIcon = `<i><svg width="22" height="22" viewBox="0 0 24 24" fill="#1a0d00"><path d="M7 4v16l13-8z"/></svg></i>`;
+  function renderCams() {
+    if (!st.cams.length) {
+      $("#cams").innerHTML = `<div class="empty">${st.status && st.status.connected ? "No cameras found on this Arlo login." : "Cameras show up here once Arlo is connected."}</div>`;
+      return;
+    }
+    $("#cams").innerHTML = st.cams.map((c) => {
+      const pill = c.capturing ? `<span class="pill rec">● Recording</span>` : c.viewing ? `<span class="pill live">● Live</span>`
+        : c.motion ? `<span class="pill motion">Motion</span>` : c.unavailable ? `<span class="pill off">Offline</span>` : "";
+      const batt = c.battery == null ? "" : `<span class="batt ${c.battery < 20 ? "low" : ""}"><svg width="18" height="10" viewBox="0 0 18 10"><rect x=".5" y=".5" width="15" height="9" rx="2" fill="none" stroke="currentColor"/><rect x="2" y="2" width="${Math.max(1, Math.round(12 * c.battery / 100))}" height="6" rx="1" fill="currentColor"/><rect x="16" y="3" width="1.5" height="4" fill="currentColor"/></svg>${c.battery}%</span>`;
+      return `<div class="cam" data-id="${esc(c.id)}">
+        <button class="shot" data-live="${esc(c.id)}" title="Watch live">${c.thumb ? `<img src="${esc(c.thumb)}" alt="" loading="lazy">` : `<span class="ph">${camIcon}</span>`}
+          ${pill}<span class="play">${playIcon}</span></button>
+        <div class="body">
+          <div class="top"><b>${esc(c.name)}</b>${batt}</div>
+          <div class="muted">Motion ${ago(c.last_motion)} · Last clip ${c.last_clip_ms ? ago(c.last_clip_ms / 1000) : "not yet"}</div>
+          ${c.last_error ? `<div class="err">${esc(c.last_error)}</div>` : ""}
+          <div class="btns"><button class="primary" data-live="${esc(c.id)}" ${c.unavailable ? "disabled" : ""}>▶ Watch live</button>
+            <button data-rec="${esc(c.id)}" ${c.capturing || c.unavailable ? "disabled" : ""}>${c.capturing ? "Recording…" : "● Record clip"}</button></div>
+        </div></div>`;
+    }).join("");
+  }
+  $("#cams").addEventListener("click", async (e) => {
+    const lv = e.target.closest("[data-live]"), rc = e.target.closest("[data-rec]");
+    if (lv) openLive(lv.dataset.live);
+    if (rc) {
+      rc.disabled = true; rc.textContent = "Starting…";
+      const r = await api(`/api/camera/${encodeURIComponent(rc.dataset.rec)}/record`, { method: "POST" });
+      if (!r.ok) alert(r.error);
+      loadStatus();
+    }
+  });
+
+  // ---------- recordings ----------
+  function camNames() {
+    const m = new Map();
+    st.cams.forEach((c) => m.set(c.id, { id: c.id, name: c.name, n: 0 }));
+    st.clipCams.forEach((c) => m.set(c.camera_id, { id: c.camera_id, name: m.get(c.camera_id)?.name || c.camera_name, n: c.n }));
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  function renderChips() {
+    const total = st.clipCams.reduce((a, c) => a + c.n, 0);
+    $("#chips").innerHTML = `<button class="chip ${st.camera ? "" : "on"}" data-cam="">All cameras <small>${total}</small></button>` +
+      camNames().map((c) => `<button class="chip ${st.camera === c.id ? "on" : ""}" data-cam="${esc(c.id)}">${esc(c.name)} <small>${c.n}</small></button>`).join("");
+  }
+  $("#chips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cam]"); if (!b) return;
+    st.camera = b.dataset.cam; renderChips(); loadClips(true);
+    const u = new URL(location); st.camera ? u.searchParams.set("camera", st.camera) : u.searchParams.delete("camera"); history.replaceState(null, "", u);
+  });
+  document.querySelectorAll("#groupby button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.g === st.group);
+    b.onclick = () => { st.group = b.dataset.g; try { localStorage.setItem("ban.group", st.group); } catch (e) {}
+      document.querySelectorAll("#groupby button").forEach((x) => x.classList.toggle("on", x === b)); renderClips(); };
+  });
+  $("#starred").onclick = () => { st.starred = !st.starred; $("#starred").classList.toggle("on", st.starred); loadClips(true); };
+  $("#sync").onclick = async () => { $("#sync").textContent = "Syncing…"; await api("/api/sync", { method: "POST" });
+    setTimeout(() => { $("#sync").textContent = "Sync"; loadClips(true); loadStatus(); }, 6000); };
+
+  async function loadClips(reset) {
+    if (st.loading) return;
+    st.loading = true;
+    if (reset) { st.offset = 0; st.done = false; }
+    const p = new URLSearchParams({ limit: PAGE, offset: st.offset });
+    if (st.camera) p.set("camera", st.camera);
+    if (st.starred) p.set("starred", "1");
+    const rows = await api(`/api/clips?${p}`).catch(() => []);
+    st.loading = false;
+    if (!Array.isArray(rows)) return;
+    st.clips = reset ? rows : st.clips.concat(rows.filter((r) => !st.clips.some((c) => c.key === r.key)));
+    st.offset += rows.length; st.done = rows.length < PAGE;
+    $("#newpill").style.display = "none";
+    renderClips();
+  }
+
+  function renderClips() {
+    if (!st.clips.length) {
+      $("#groups").innerHTML = `<div class="empty">${st.starred ? "No starred clips. Star a clip to keep it forever." : "No clips yet. When a camera sees motion, a 20-second clip is recorded and shows up here about 30 seconds later. Use “Record clip” on a camera to try one now."}</div>`;
+      $("#more").hidden = true; return;
+    }
+    const groups = [];
+    st.clips.forEach((c, i) => {
+      const d = new Date(c.created_ms);
+      const key = st.group === "month" ? `${d.getFullYear()}-${d.getMonth()}` : d.toDateString();
+      let g = groups[groups.length - 1];
+      if (!g || g.key !== key) groups.push(g = { key, label: st.group === "month" ? monthLabel(d) : dayLabel(d), items: [] });
+      g.items.push(i);
+    });
+    $("#groups").innerHTML = groups.map((g, gi) => {
+      const more = gi === groups.length - 1 && !st.done ? "+" : "";
+      return `<div class="group"><h3>${esc(g.label)} <small>${g.items.length}${more} clip${g.items.length === 1 && !more ? "" : "s"}</small></h3><div class="grid">${
+        g.items.map((i) => {
+          const c = st.clips[i], d = new Date(c.created_ms);
+          const when = st.group === "month" ? `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · ${tm(d)}` : tm(d);
+          return `<div class="clip ${st.picked.has(c.key) ? "picked" : ""}" data-i="${i}">
+            <div class="thumb">${c.thumb_path ? `<img loading="lazy" src="/media/${encodeURI(c.thumb_path)}" alt="">` : ""}
+              ${c.starred ? `<span class="starb">★</span>` : ""}${c.duration_s ? `<span class="dur">${Math.round(c.duration_s)}s</span>` : ""}</div>
+            <span class="pick"></span>
+            <div class="info"><b>${esc(c.camera_name)}</b><span>${esc(when)}${c.source === "base_station" ? " · USB" : ""}</span></div></div>`;
+        }).join("")}</div></div>`;
+    }).join("");
+    $("#more").hidden = st.done;
+  }
+  $("#more").onclick = () => loadClips(false);
+  // Load older clips as the bottom comes into view.
+  new IntersectionObserver((en) => { if (en[0].isIntersecting && !st.done && st.clips.length) loadClips(false); }, { rootMargin: "600px" }).observe($("#more"));
+
+  $("#groups").addEventListener("click", (e) => {
+    const el = e.target.closest(".clip"); if (!el) return;
+    const i = +el.dataset.i, key = st.clips[i].key;
+    if (st.selecting) { st.picked.has(key) ? st.picked.delete(key) : st.picked.add(key); el.classList.toggle("picked"); updateBulk(); return; }
+    openPlayer(i);
+  });
+
+  // ---------- select several ----------
+  function setSelecting(on) { st.selecting = on; if (!on) st.picked.clear(); document.body.classList.toggle("selecting", on); renderClips(); updateBulk(); }
+  function updateBulk() {
+    const n = st.picked.size;
+    $("#selcount").textContent = `${n} selected`;
+    $("#selall").textContent = n && n === st.clips.length ? "Select none" : "Select all";
+    ["#bstar", "#bunstar", "#bdelete"].forEach((s) => $(s).disabled = !n);
+  }
+  $("#select").onclick = () => setSelecting(!st.selecting);
+  $("#seldone").onclick = () => setSelecting(false);
+  $("#selall").onclick = () => { const all = st.picked.size === st.clips.length; st.clips.forEach((c) => all ? st.picked.delete(c.key) : st.picked.add(c.key)); renderClips(); updateBulk(); };
+  async function bulk(action) {
+    const keys = [...st.picked];
+    if (action === "delete") {
+      const starred = st.clips.filter((c) => st.picked.has(c.key) && c.starred).length;
+      if (!confirm(`Delete ${keys.length} clip${keys.length === 1 ? "" : "s"}? This can't be undone.` + (starred ? `\n${starred} of them ${starred === 1 ? "is" : "are"} starred.` : ""))) return;
+    }
+    await api("/api/clips/bulk", { method: "POST", body: JSON.stringify({ action, keys }) });
+    setSelecting(false); loadClips(true); loadStatus();
+  }
+  $("#bstar").onclick = () => bulk("star"); $("#bunstar").onclick = () => bulk("unstar"); $("#bdelete").onclick = () => bulk("delete");
+
+  // ---------- player ----------
+  let cur = -1;
+  const vid = $("#p-video");
+  function openPlayer(i) {
+    cur = i; const c = st.clips[i]; if (!c) return;
+    const d = new Date(c.created_ms);
+    $("#p-title").textContent = c.camera_name;
+    $("#p-sub").textContent = `${dayLabel(d)}, ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` + (c.duration_s ? ` · ${Math.round(c.duration_s)}s` : "") + (c.size_bytes ? ` · ${size(c.size_bytes)}` : "");
+    vid.poster = c.thumb_path ? `/media/${encodeURI(c.thumb_path)}` : "";
+    vid.src = `/media/${encodeURI(c.video_path)}`;
+    vid.play().catch(() => {});
+    $("#p-dl").href = vid.src;
+    $("#p-star").textContent = c.starred ? "★ Starred" : "☆ Star";
+    $("#p-newer").disabled = $("#p-prev").disabled = i <= 0;
+    $("#p-older").disabled = $("#p-next").disabled = i >= st.clips.length - 1 && st.done;
+    $("#player").classList.add("open");
+    if (location.hash !== "#play") history.pushState({ modal: 1 }, "", "#play");
+  }
+  function closeModals(fromPop) {
+    if ($("#player").classList.contains("open")) { vid.pause(); vid.removeAttribute("src"); vid.load(); $("#player").classList.remove("open"); }
+    if ($("#live").classList.contains("open")) closeLive();
+    if (!fromPop && /^#(play|live)$/.test(location.hash)) history.back();
+  }
+  window.addEventListener("popstate", () => closeModals(true));
+  async function step(n) {
+    if (n > 0 && cur >= st.clips.length - 1 && !st.done) await loadClips(false);
+    if (st.clips[cur + n]) openPlayer(cur + n);
+  }
+  $("#p-close").onclick = () => closeModals();
+  $("#p-newer").onclick = $("#p-prev").onclick = () => step(-1);
+  $("#p-older").onclick = $("#p-next").onclick = () => step(1);
+  $("#p-star").onclick = async () => {
+    const c = st.clips[cur]; c.starred = c.starred ? 0 : 1;
+    await api(`/api/clip/${encodeURIComponent(c.key)}/star`, { method: "POST", body: JSON.stringify({ on: !!c.starred }) });
+    $("#p-star").textContent = c.starred ? "★ Starred" : "☆ Star"; renderClips();
+  };
+  $("#p-del").onclick = async () => {
+    const c = st.clips[cur];
+    if (!confirm(`Delete this clip from ${c.camera_name}?` + (c.starred ? "\nIt's starred." : ""))) return;
+    await api(`/api/clip/${encodeURIComponent(c.key)}`, { method: "DELETE" });
+    st.clips.splice(cur, 1); st.offset--; renderClips(); loadStatus();
+    if (st.clips[cur]) openPlayer(cur); else closeModals();
+  };
+  // Swipe left/right on a phone for the next/previous clip.
+  let tx = null;
+  $("#player .stage").addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; }, { passive: true });
+  $("#player .stage").addEventListener("touchend", (e) => {
+    if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; tx = null;
+    if (Math.abs(dx) > 70) step(dx < 0 ? 1 : -1);
+  });
+
+  // ---------- live view ----------
+  let liveCam = null, livePoll = null, gotFrame = false;
+  const limg = $("#l-img");
+  function liveMsg(text, spin, again) {
+    $("#l-over").style.display = text ? "flex" : "none";
+    $("#l-msg").textContent = text || "";
+    $(".spin", $("#l-over")).style.display = spin ? "block" : "none";
+    $("#l-again").hidden = !again;
+  }
+  async function openLive(id) {
+    const c = st.cams.find((x) => x.id === id); if (!c) return;
+    liveCam = id; gotFrame = false;
+    $("#l-title").textContent = c.name;
+    $("#l-sub").innerHTML = "Connecting…";
+    liveMsg(c.capturing ? "Showing the clip being recorded now…" : "Waking up the camera… this takes about 10 seconds.", true, false);
+    $("#live").classList.add("open");
+    if (location.hash !== "#live") history.pushState({ modal: 1 }, "", "#live");
+    const r = await api(`/api/camera/${encodeURIComponent(id)}/live`, { method: "POST" });
+    if (liveCam !== id) return;
+    if (r.state === "error") { liveMsg(r.error || "Couldn't start live view.", false, true); return; }
+    limg.src = `/api/camera/${encodeURIComponent(id)}/live.mjpg?t=${Date.now()}`;
+    clearInterval(livePoll);
+    livePoll = setInterval(pollLive, 1500);
+    loadStatus();
+  }
+  limg.addEventListener("load", () => { if (limg.src && liveCam) { gotFrame = true; liveMsg(""); } });
+  async function pollLive() {
+    if (!liveCam) return;
+    const r = await api(`/api/camera/${encodeURIComponent(liveCam)}/live`).catch(() => null);
+    if (!r || !liveCam) return;
+    if (r.state === "live") {
+      if (!gotFrame) { gotFrame = true; liveMsg(""); }
+      const m = Math.floor(r.seconds_left / 60), s = String(r.seconds_left % 60).padStart(2, "0");
+      $("#l-sub").innerHTML = `<span class="livebadge"><i></i>LIVE</span> · pauses in ${m}:${s} to save the battery`;
+    } else if (r.state === "starting") {
+      $("#l-sub").textContent = "Connecting…";
+    } else if (r.state === "error") {
+      clearInterval(livePoll); liveMsg(r.error || "Live view stopped.", false, true); $("#l-sub").textContent = "Not connected";
+    } else {
+      clearInterval(livePoll); limg.removeAttribute("src");
+      liveMsg("Live view paused to save the camera's battery.", false, true); $("#l-sub").textContent = "Paused";
+      loadStatus();
+    }
+  }
+  function closeLive() {
+    clearInterval(livePoll); liveCam = null;
+    limg.removeAttribute("src"); limg.src = "data:,";   // drops the connection, so the camera stops streaming
+    $("#live").classList.remove("open");
+    setTimeout(loadStatus, 6000);
+  }
+  $("#l-close").onclick = () => closeModals();
+  $("#l-again").onclick = () => { const id = liveCam; if (id) { liveCam = null; openLive(id); } };
+  $("#l-record").onclick = async () => {
+    const r = await api(`/api/camera/${encodeURIComponent(liveCam)}/record`, { method: "POST" });
+    $("#l-record").textContent = r.ok ? "Recording 20 seconds…" : "Already recording";
+    setTimeout(() => { $("#l-record").textContent = "● Record a clip"; }, 25000);
+  };
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { if (st.selecting) setSelecting(false); else closeModals(); }
+    if ($("#player").classList.contains("open") && e.key === "ArrowLeft") step(-1);
+    if ($("#player").classList.contains("open") && e.key === "ArrowRight") step(1);
+  });
+
+  // ---------- her picture ----------
+  $("#photo").onclick = () => $("#photo-file").click();
+  $("#photo-file").onchange = async () => {
+    const f = $("#photo-file").files[0]; if (!f) return;
+    const fd = new FormData(); fd.append("photo", f);
+    const r = await api("/api/photo", { method: "POST", body: fd });
+    if (!r.ok) return alert(r.error || "Couldn't save that picture.");
+    const t = Date.now(); document.querySelectorAll('img[src^="/photo"], #photo-img, .brand img.mark').forEach((i) => { i.src = `/photo?t=${t}`; });
+  };
+
+  // ---------- live updates: a new clip or motion shows up without reloading ----------
+  function listen() {
+    let es;
+    try { es = new EventSource("/api/events"); } catch (e) { return; }
+    es.addEventListener("motion", () => loadStatus());
+    es.addEventListener("clip", (m) => {
+      loadStatus();
+      let ev = {}; try { ev = JSON.parse(m.data); } catch (e) {}
+      if (ev.reason === "test" || (st.camera && ev.camera_id !== st.camera) || st.starred) return;
+      if (!st.selecting && window.scrollY < 600 && !$("#player").classList.contains("open")) loadClips(true);
+      else $("#newpill").style.display = "inline-flex";
+    });
+  }
+  $("#newpill").onclick = () => { window.scrollTo({ top: 0, behavior: "smooth" }); loadClips(true); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadStatus(); loadClips(true); } });
+
+  loadStatus(); loadClips(true); listen();
+  if (/^#(play|live)$/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
+  // Opened from a phone notification: /?clip=<key> plays it, /?live=<camera> watches it.
+  if (qs.get("clip")) {
+    api(`/api/clips?limit=200`).then((rows) => {
+      const i = (rows || []).findIndex((c) => c.key === qs.get("clip"));
+      if (i >= 0) { st.clips = rows; st.offset = rows.length; st.done = rows.length < 200; renderClips(); openPlayer(i); }
+    });
+  }
+  if (qs.get("live")) setTimeout(() => openLive(qs.get("live")), 800);
+})();
+{% endraw %}
+</script>
+{% endblock %}

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1424">
+<title>{% block title %}BAN · Barb's Arlo Notifications{% endblock %}</title>
+<link rel="icon" href="{{ url_for('static', filename='favicon.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='ban-192.png') }}">
+<link rel="manifest" href="{{ url_for('manifest') }}">
+<style>
+  /* Same family as GarysTV: deep navy, white type; BAN's accent is orange where GarysTV's is red. */
+  :root {
+    --bg:#04070d; --bg2:#0a1424; --panel:#0e1a2e; --panel2:#13233d; --card:#0e1a2e;
+    --line:#22385c; --ink:#eef3fb; --text:#eef3fb; --muted:#93a6c4; --dim:#5d7194;
+    --accent:#ff7a1a; --accent2:#ffa23a; --accent-ink:#1a0d00;
+    --danger:#ff5c6c; --star:#f5c518; --green:#2fbf71; --rec:#e4002b; --blue:#2f8cff;
+    --radius:14px; --tabbar:0px;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { background:var(--bg); }
+  body { margin:0; min-height:100vh; color:var(--ink);
+         background:radial-gradient(ellipse at 20% -10%, #15284a 0%, var(--bg2) 35%, var(--bg) 80%) fixed;
+         font:15px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  a { color:inherit; text-decoration:none; }
+  button, input, select { font:inherit; color:inherit; }
+
+  /* ---------- top bar ---------- */
+  .topbar { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+            padding:12px 22px; padding-top:max(12px, env(safe-area-inset-top));
+            background:linear-gradient(#0a1424f2, #0a1424d9); backdrop-filter:blur(8px);
+            border-bottom:1px solid #22385c88; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; }
+  .brand .badge { display:flex; align-items:center; gap:7px; padding:4px 11px 4px 4px; border-radius:9px; margin-left:8px;
+                  border:2px solid var(--accent); box-shadow:0 0 16px #ff7a1a40; background:#0b1630; }
+  .brand .badge img.mark { width:32px; height:32px; display:block; border-radius:50%; object-fit:cover; border:2px solid var(--accent); margin:-6px 0 -6px -8px; box-shadow:0 0 12px #ff7a1a66; }
+  .brand .word { font-size:22px; letter-spacing:.04em; line-height:1; }
+  .brand .word b { color:var(--accent2); }
+  .brand .full { color:var(--muted); font-weight:600; font-size:13px; letter-spacing:.02em; }
+  .nav { display:flex; gap:6px; flex-wrap:wrap; }
+  .nav a, .btn, button { display:inline-flex; align-items:center; justify-content:center; gap:6px;
+         font-size:14px; font-weight:600; padding:7px 14px; border-radius:999px; cursor:pointer;
+         border:1px solid var(--line); background:var(--panel); color:var(--ink); white-space:nowrap; }
+  .nav a:hover, .btn:hover, button:hover { border-color:#3a5687; background:var(--panel2); }
+  .nav a.on { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  button.primary, .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  button.primary:hover, .btn.primary:hover { background:var(--accent2); border-color:var(--accent2); }
+  button.danger { color:var(--danger); }
+  button[disabled] { opacity:.45; cursor:default; }
+  .spacer { flex:1; }
+  .meta { color:var(--muted); font-size:13px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:1px; }
+  .alert-dot { width:8px; height:8px; border-radius:50%; background:var(--star); display:inline-block; }
+
+  main { padding:18px 22px calc(40px + var(--tabbar)); max-width:1500px; margin:0 auto; }
+  h2.sec { font-size:14px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+           margin:22px 0 12px; display:flex; align-items:center; gap:10px; }
+  .muted { color:var(--muted); font-size:13px; }
+
+  /* ---------- panels and forms (Alerts and Arlo pages) ---------- */
+  section.panel, .prompt { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+           padding:16px 18px; margin-bottom:16px; max-width:780px; }
+  .prompt { border-color:var(--accent); box-shadow:0 0 24px #ff7a1a22; max-width:none; }
+  section.panel h2, .prompt h2 { font-size:17px; margin:0 0 4px; }
+  section.panel > p, .prompt p { margin:0 0 12px; color:var(--muted); font-size:14px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input[type=tel], input[type=text], input[type=url], input[type=password], input[type=number], input[type=date], select {
+    font-size:15px; padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg2);
+    color:var(--ink); min-width:0; }
+  input:focus, select:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  input[type=tel] { width:200px; }
+  input[type=checkbox] { accent-color:var(--accent); width:17px; height:17px; vertical-align:-3px; }
+  .numbers { list-style:none; padding:0; margin:0 0 12px; }
+  .numbers li { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .numbers li:last-child { border-bottom:0; }
+  .numbers .num { white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums; }
+  .numbers .off { opacity:.45; }
+  .numbers form { margin:0; }
+  .field { display:grid; grid-template-columns:160px 1fr; gap:6px 12px; align-items:center; margin-bottom:9px; }
+  .field label { font-size:14px; color:var(--muted); }
+  .check { display:block; margin:8px 0; font-size:14px; }
+  .result { font-size:14px; margin:4px 0; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .actions form { margin:0; }
+  .flash { padding:10px 14px; border-radius:10px; margin-bottom:14px; border:1px solid var(--line); background:var(--panel); }
+  .flash.ok { border-color:var(--green); } .flash.error { border-color:var(--danger); color:var(--danger); }
+  video { width:100%; max-height:75vh; background:#000; border-radius:12px; display:block; }
+
+  /* ---------- phone ---------- */
+  .tabbar { display:none; }
+  @media (max-width:700px) {
+    :root { --tabbar:64px; }
+    body { font-size:15px; }
+    .topbar { padding:10px 14px; padding-top:max(10px, env(safe-area-inset-top)); gap:8px; }
+    .topbar .nav, .brand .full, .topbar .meta.wide { display:none; }
+    main { padding:12px 12px calc(28px + var(--tabbar) + env(safe-area-inset-bottom)); }
+    .field { grid-template-columns:1fr; }
+    input[type=tel] { width:100%; }
+    section.panel, .prompt { padding:14px; }
+    .tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:30; height:calc(var(--tabbar) + env(safe-area-inset-bottom));
+              padding-bottom:env(safe-area-inset-bottom); background:#0a1424f5; backdrop-filter:blur(8px); border-top:1px solid var(--line); }
+    .tabbar a { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+                font-size:11.5px; font-weight:600; color:var(--muted); position:relative; }
+    .tabbar a svg { width:24px; height:24px; }
+    .tabbar a.on { color:var(--accent2); }
+    .tabbar a .alert-dot { position:absolute; top:10px; left:calc(50% + 8px); }
+  }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body class="{% block bodyclass %}{% endblock %}">
+<header class="topbar">
+  <a class="brand" href="{{ url_for('index') }}" title="Barb's Arlo Notifications">
+    <span class="badge"><img class="mark" src="{{ url_for('photo') }}" alt=""><span class="word">B<b>AN</b></span></span>
+    <span class="full">Barb's Arlo Notifications</span>
+  </a>
+  {% block header %}{% endblock %}
+  <span class="spacer"></span>
+  <nav class="nav">
+    <a href="{{ url_for('index') }}#cameras" data-tab="cameras">Cameras</a>
+    <a href="{{ url_for('index') }}#recordings" data-tab="recordings">Recordings</a>
+    <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint in ('settings','test_alert') }}">Alerts{% if alerts_need_setup %} <span class="alert-dot"></span>{% endif %}</a>
+    <a href="{{ url_for('connect') }}" class="{{ 'on' if request.endpoint == 'connect' }}">Arlo</a>
+  </nav>
+</header>
+<main>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block body %}{% endblock %}
+</main>
+<nav class="tabbar">
+  <a href="{{ url_for('index') }}#cameras" data-tab="cameras">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>Cameras</a>
+  <a href="{{ url_for('index') }}#recordings" data-tab="recordings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Recordings</a>
+  <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint in ('settings','test_alert') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Alerts{% if alerts_need_setup %}<span class="alert-dot"></span>{% endif %}</a>
+  <a href="{{ url_for('connect') }}" class="{{ 'on' if request.endpoint == 'connect' }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Arlo</a>
+</nav>
+{% block script %}{% endblock %}
+</body>
+</html>

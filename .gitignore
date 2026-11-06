@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.env
+data/
+# Personal: the photo shown at the top of the page (put yours in server/app/static/)
+server/app/static/photo-default.jpg
+# Android build output and secrets
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/signing.properties
+*.apk
+*.keystore
+*.jks

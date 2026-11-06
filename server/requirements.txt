@@ -1,0 +1,4 @@
+pyaarlo @ git+https://github.com/twrecked/pyaarlo@master
+flask>=3.0
+waitress>=3.0
+requests>=2.31

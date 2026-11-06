@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Connect Arlo · BAN{% endblock %}
+{% block header %}<div class="meta"><span>Connect Arlo</span></div>{% endblock %}
+{% block body %}
+<div id="live">
+{% if status.connected %}
+<section class="panel">
+  <h2>✅ Connected to Arlo</h2>
+  <p>Signed in as {{ saved_user }}. {{ status.cameras|length }} camera(s) found:
+     {{ status.cameras|map(attribute='name')|join(', ') or 'none yet' }}.</p>
+  <a class="btn" href="{{ url_for('index') }}">Go to cameras</a>
+</section>
+
+{% elif login.waiting_for_code %}
+<section class="panel">
+  <h2>Enter the Arlo verification code</h2>
+  <p>Arlo just sent a code to the email (or phone) on the account. Enter it within 10 minutes.</p>
+  <form class="row" method="post" action="{{ url_for('connect_code') }}">
+    <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required autofocus style="width:160px;font-size:20px;letter-spacing:3px">
+    <button class="primary">Verify</button>
+  </form>
+</section>
+
+{% elif status.signing_in %}
+<section class="panel">
+  <h2>Signing in…</h2>
+  <p>Talking to Arlo. This page updates on its own.</p>
+</section>
+
+{% else %}
+<section class="panel">
+  <h2>Sign in to Arlo</h2>
+  <p>Use a second Arlo account that your cameras are shared to (Arlo app → Settings → Grant Access). Arlo signs out other sessions on the same login, so this keeps your phone app signed in.</p>
+  {% if status.error %}
+  <div class="flash error">Last attempt failed: {{ status.error }}<br>
+    Check the email and password before trying again. Arlo locks sign-ins for about a day after repeated failures.</div>
+  {% endif %}
+  <form method="post" action="{{ url_for('connect_submit') }}">
+    <div class="field"><label>Arlo email</label><input type="text" name="username" value="{{ saved_user or '' }}" autocomplete="username" required></div>
+    <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
+    <div class="actions"><button class="primary">Sign in</button></div>
+  </form>
+  <p class="muted" style="margin-top:12px">The password is saved on this server so it can reconnect after a restart. After the first sign-in, Arlo usually won't ask for a code again.</p>
+</section>
+{% endif %}
+</div>
+<script>
+  // Refresh when sign-in moves to the next step (code needed, connected, failed).
+  (function () {
+    let last = null;
+    setInterval(async () => {
+      try {
+        const s = await (await fetch("{{ url_for('connect_state') }}")).json();
+        const key = [s.waiting_for_code, s.connected, s.signing_in, s.error].join("|");
+        if (last !== null && key !== last && !document.activeElement.matches("input")) location.reload();
+        if (last !== null && key !== last && s.waiting_for_code) location.reload();
+        last = key;
+      } catch (e) {}
+    }, 2000);
+  })();
+</script>
+{% endblock %}

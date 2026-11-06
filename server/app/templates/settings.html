@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Alerts · BAN{% endblock %}
+{% block header %}<div class="meta"><span>Alerts</span></div>{% endblock %}
+{% block body %}
+<section class="panel" id="phone-panel" hidden>
+  <h2>📱 This phone</h2>
+  <p>The BAN app shows a notification the moment a camera sees motion, then adds the picture once the clip is saved. Tap it to watch. Works on the home Wi-Fi, or away from home over TapperVPN.</p>
+  <label class="check"><input type="checkbox" id="ph-on"> Notify me on this phone when a camera sees motion</label>
+  <div class="muted" id="ph-state" style="margin:4px 0 10px"></div>
+  <div class="actions" style="margin-top:4px">
+    <button type="button" id="ph-test">Send a test notification</button>
+    <button type="button" id="ph-batt" hidden>Let BAN run in the background</button>
+    <button type="button" id="ph-server">Server address…</button>
+  </div>
+</section>
+<section class="panel" id="get-app" hidden>
+  <h2>📱 BAN for Android phones</h2>
+  <p>Get a notification on your phone when a camera sees motion, and watch any camera live. Open this page on the phone, tap Download, then open the file to install it (allow installs from this browser if Android asks).</p>
+  <a class="btn primary" href="{{ url_for('apk') }}">Download the BAN app</a>
+</section>
+
+{% if results %}
+<section class="panel">
+  <h2>Test results</h2>
+  {% for name, ok, detail in results %}
+  <div class="result">{{ '✅' if ok else '⚠️' }} <b>{{ name }}</b> — {{ detail }}</div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Text message numbers</h2>
+  <p>Everyone on this list gets a text when a clip is saved.</p>
+  {% if s.numbers %}
+  <ul class="numbers">
+    {% for n in s.numbers %}
+    <li class="{{ '' if n.enabled else 'off' }}">
+      <span class="num">{{ pretty_number(n.number) }}</span>
+      {% if n.label %}<span class="muted">{{ n.label }}</span>{% endif %}
+      {% if not n.enabled %}<span class="muted">paused</span>{% endif %}
+      <span style="flex:1"></span>
+      <form method="post" action="{{ url_for('number_action', num=n.number, action='toggle') }}"><button>{{ 'Pause' if n.enabled else 'Resume' }}</button></form>
+      <form method="post" action="{{ url_for('number_action', num=n.number, action='remove') }}" onsubmit="return confirm('Remove {{ pretty_number(n.number) }}?')"><button class="danger">Remove</button></form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <form class="row" method="post" action="{{ url_for('add_number') }}">
+    <input type="tel" name="number" placeholder="(773) 555-0123" autocomplete="tel" required>
+    <input type="text" name="label" placeholder="Name (optional)" style="width:160px">
+    <button class="primary">Add number</button>
+  </form>
+  {% if s.numbers and not sms_ready %}
+  <p class="muted" style="margin-top:10px">⚠️ Texts won't go out until the Twilio account below is filled in.</p>
+  {% endif %}
+</section>
+
+<form method="post" action="{{ url_for('save_settings') }}">
+<section class="panel">
+  <h2>Text message account (Twilio)</h2>
+  <p>Texts are sent through Twilio. Sign up at twilio.com, buy a number (~$1.15/month), then copy the Account SID and Auth Token from the console. US numbers also need A2P 10DLC registration before carriers deliver texts.</p>
+  <div class="field"><label>Account SID</label><input type="text" name="twilio_sid" value="{{ s.twilio_sid }}" placeholder="ACxxxxxxxx…" autocomplete="off"></div>
+  <div class="field"><label>Auth Token</label>
+    <div class="row"><input type="password" name="twilio_token" placeholder="{{ 'saved — leave blank to keep' if s.twilio_token else '' }}" autocomplete="new-password" style="flex:1">
+    {% if s.twilio_token %}<label class="muted"><input type="checkbox" name="clear_twilio_token" value="1"> clear</label>{% endif %}</div></div>
+  <div class="field"><label>Twilio number</label><input type="tel" name="twilio_from" value="{{ pretty_number(s.twilio_from) if s.twilio_from else '' }}" placeholder="the number you bought"></div>
+</section>
+
+<section class="panel">
+  <h2>Push notifications (optional)</h2>
+  <p>Free alternative to texts, with the snapshot attached. Install the ntfy app, subscribe to a hard-to-guess topic, and paste its URL.</p>
+  <div class="field"><label>ntfy topic URL</label><input type="url" name="ntfy_url" value="{{ s.ntfy_url }}" placeholder="https://ntfy.sh/arlo-keeper-xyz123"></div>
+  <div class="field"><label>Pushover user key</label><input type="text" name="pushover_user" value="{{ s.pushover_user }}"></div>
+  <div class="field"><label>Pushover app token</label><input type="password" name="pushover_token" placeholder="{{ 'saved — leave blank to keep' if s.pushover_token else '' }}" autocomplete="new-password"></div>
+  <div class="field"><label>Webhook URL</label><input type="url" name="webhook_url" value="{{ s.webhook_url }}" placeholder="Home Assistant, etc."></div>
+</section>
+
+<section class="panel">
+  <h2>When to alert</h2>
+  <label class="check"><input type="checkbox" name="on_clip" value="1" {{ 'checked' if s.on_clip }}> When a clip is saved</label>
+  <label class="check"><input type="checkbox" name="motion_fallback" value="1" {{ 'checked' if s.motion_fallback }}> If a camera sees motion but no clip arrives within 2 minutes (cameras with no recording available)</label>
+  <label class="check"><input type="checkbox" name="on_motion" value="1" {{ 'checked' if s.on_motion }}> The instant motion starts (faster, no picture, more texts)</label>
+  <div class="field" style="margin-top:10px"><label>Quiet time per camera</label>
+    <div class="row"><input type="number" name="cooldown" min="0" value="{{ s.cooldown }}" style="width:90px"><span class="muted">seconds between alerts from the same camera</span></div></div>
+  <div class="field"><label>Link in alerts</label><input type="url" name="public_url" value="{{ s.public_url }}" placeholder="http://192.168.5.50:8080"></div>
+</section>
+
+<div class="actions" style="max-width:760px">
+  <button class="primary">Save</button>
+  <button formaction="{{ url_for('test_alert') }}">Send test alert</button>
+</div>
+</form>
+{% endblock %}
+{% block script %}
+<script>
+(function () {
+  const A = window.BANApp, $ = (s) => document.querySelector(s);
+  if (!A) {
+    fetch("/api/status").then((r) => r.json()).then((s) => { if (s.has_apk && /Android/i.test(navigator.userAgent)) $("#get-app").hidden = false; }).catch(() => {});
+    return;
+  }
+  $("#phone-panel").hidden = false;
+  function show() {
+    $("#ph-on").checked = A.notificationsEnabled();
+    const batt = A.batteryOk();
+    $("#ph-batt").hidden = batt || !A.notificationsEnabled();
+    $("#ph-state").textContent = (A.notificationsEnabled() ? A.connectionState() : "Notifications are off on this phone.") +
+      " · Server " + A.server() + " · App " + A.version() + (batt ? "" : " · Android may pause BAN to save battery");
+  }
+  $("#ph-on").onchange = () => { A.setNotifications($("#ph-on").checked); setTimeout(show, 800); };
+  $("#ph-batt").onclick = () => A.fixBattery();
+  $("#ph-server").onclick = () => A.changeServer();
+  $("#ph-test").onclick = async () => {
+    const r = await (await fetch("/api/test-phone", { method: "POST" })).json();
+    $("#ph-state").textContent = r.phones ? `Test sent to ${r.phones} phone${r.phones === 1 ? "" : "s"}. It should show up in a second.`
+      : "No phone is listening right now. Turn on notifications above and try again.";
+  };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) show(); });
+  setInterval(show, 3000); show();
+})();
+</script>
+{% endblock %}
