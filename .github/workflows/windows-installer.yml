@@ -1,0 +1,133 @@
+# Builds ArloKeeper-Setup.exe (Arlo Keeper for Windows, with its own Python and ffmpeg) and puts it
+# on the "windows-installer" release. That release is never marked latest, so the BAN.apk link
+# (.../releases/latest/download/BAN.apk) keeps pointing at the Android release.
+# Download: https://github.com/userxx09-afk/Arlo/releases/download/windows-installer/ArloKeeper-Setup.exe
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server/app/**'
+      - 'server/requirements.txt'
+      - 'server/windows/**'
+      - '.github/workflows/windows-installer.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-installer
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Bundle Python, packages, the app and ffmpeg
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $b = 'build\ArloKeeper'
+          New-Item -ItemType Directory -Force $b | Out-Null
+
+          # Embeddable Python, same version as the one pip runs under (so compiled packages match)
+          $pyver = python -c "import platform; print(platform.python_version())"
+          Invoke-WebRequest "https://www.python.org/ftp/python/$pyver/python-$pyver-embed-amd64.zip" -OutFile py.zip
+          Expand-Archive py.zip "$b\python"
+          $pth = Get-ChildItem "$b\python\python3*._pth" | Select-Object -First 1
+          $zip = (Get-ChildItem "$b\python\python3*.zip" | Select-Object -First 1).Name
+          # '..' puts the install folder (where app\ and launcher.py are) on the import path
+          Set-Content $pth.FullName @($zip, '.', 'Lib\site-packages', '..', 'import site') -Encoding ascii
+
+          python -m pip install --upgrade pip
+          python -m pip install --target "$b\python\Lib\site-packages" -r server\requirements.txt
+
+          Copy-Item server\app "$b\app" -Recurse
+          Get-ChildItem $b -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+          Copy-Item server\windows\launcher.py, server\windows\*.ps1 $b
+
+          # ffmpeg + ffprobe (static build)
+          Invoke-WebRequest 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile ff.zip
+          Expand-Archive ff.zip ff
+          New-Item -ItemType Directory "$b\ffmpeg" | Out-Null
+          Copy-Item (Get-ChildItem ff -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName "$b\ffmpeg"
+          Copy-Item (Get-ChildItem ff -Recurse -Filter ffprobe.exe | Select-Object -First 1).FullName "$b\ffmpeg"
+
+      - name: Check the bundle starts and serves the page
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $b = (Resolve-Path 'build\ArloKeeper').Path
+          $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'arlo-data'
+          $env:WEB_PORT = '8090'
+          $env:PATH = "$b\ffmpeg;" + $env:PATH
+          & "$b\ffmpeg\ffmpeg.exe" -version | Select-Object -First 1
+          $p = Start-Process "$b\python\python.exe" -ArgumentList '-m', 'app.main' -WorkingDirectory $b -PassThru `
+                 -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            Start-Sleep 1
+            try { $r = Invoke-WebRequest http://127.0.0.1:8090/health -UseBasicParsing -TimeoutSec 3; $ok = $r.StatusCode -eq 200 } catch {}
+            if ($p.HasExited) { break }
+          }
+          if ($ok) { $r = Invoke-WebRequest http://127.0.0.1:8090/ -UseBasicParsing; $ok = $r.StatusCode -eq 200 }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Content out.txt, err.txt -ErrorAction SilentlyContinue | Select-Object -Last 40
+          if (-not $ok) { throw 'Arlo Keeper did not answer on port 8090' }
+          Remove-Item -Recurse -Force $env:DATA_DIR -ErrorAction SilentlyContinue
+          Get-ChildItem $b -Recurse -Directory -Filter __pycache__ | Where-Object FullName -like "$b\app*" | Remove-Item -Recurse -Force
+
+      - name: Build the installer
+        id: build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = "1.0.${{ github.run_number }}"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress | Out-Null
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc "/DAppVersion=$version" server\windows\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed ($LASTEXITCODE)" }
+          Get-Item dist\ArloKeeper-Setup.exe | Format-List Name, Length
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ArloKeeper-Setup
+          path: dist/ArloKeeper-Setup.exe
+
+      - name: Publish to the windows-installer release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          $tag = 'windows-installer'
+          $notes = @"
+          **Arlo Keeper $env:VERSION for Windows** (Windows 10/11, 64-bit). Built from $env:GITHUB_SHA.
+
+          Download **ArloKeeper-Setup.exe** below and run it. Windows may say it protected your PC: click **More info → Run anyway**.
+          Setup installs Arlo Keeper with its own Python and ffmpeg, starts it at every boot (no window), and opens http://localhost:8090 where you sign in to Arlo.
+
+          To update, run the newest ArloKeeper-Setup.exe over the old one. Clips, settings and the Arlo sign-in (in C:\ProgramData\ArloKeeper) are kept, also when uninstalling.
+          "@
+          $notes | Set-Content notes.md -Encoding utf8
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Arlo Keeper for Windows" --notes-file notes.md --latest=false --target $env:GITHUB_SHA
+          } else {
+            gh release edit $tag --title "Arlo Keeper for Windows" --notes-file notes.md --latest=false
+          }
+          gh release upload $tag dist\ArloKeeper-Setup.exe --clobber
+          "Download: https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/ArloKeeper-Setup.exe" >> $env:GITHUB_STEP_SUMMARY
