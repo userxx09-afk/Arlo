@@ -1,13 +1,20 @@
-# Makes a GitHub release from the app already in the repo (downloads/BAN.apk), so it can be
-# downloaded with a normal link: .../releases/latest/download/BAN.apk
-# Run it from the Actions tab: "Publish BAN release" > Run workflow. Works from a phone browser.
+# Publishes the app already in this repo (downloads/BAN.apk + latest.json) to the public,
+# releases-only prod repo - this source repo is private. BAN updates itself from
+# prod/arlo/latest.json, and the install link is
+#   https://raw.githubusercontent.com/userxx09-afk/prod/main/arlo/BAN.apk
+# It also makes a release there (arlo-ban-v<version>).
+# Runs by itself when downloads/ changes on main, or from the Actions tab > Run workflow.
+# Needs the PROD_REPO_TOKEN secret (Contents: read and write on userxx09-afk/prod).
 name: Publish BAN release
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['downloads/**']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
@@ -29,14 +36,29 @@ jobs:
           jq -r .notes downloads/latest.json > notes.txt
           printf '\n\n**Install:** on the phone, tap **BAN.apk** below and open the download. If Android asks, allow installs from your browser. After this, BAN updates itself.\n\nNeeds Android 8 or newer.\n' >> notes.txt
 
-      - name: Publish (or refresh) the release
+      - name: Copy BAN into the prod repo
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: v${{ steps.v.outputs.name }}
+          PROD_TOKEN: ${{ secrets.PROD_REPO_TOKEN }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" downloads/BAN.apk --clobber
+          if [ -z "$PROD_TOKEN" ]; then echo "::error::No PROD_REPO_TOKEN secret"; exit 1; fi
+          git clone --depth 1 "https://x-access-token:${PROD_TOKEN}@github.com/userxx09-afk/prod.git" prod
+          mkdir -p prod/arlo
+          cp downloads/BAN.apk downloads/latest.json prod/arlo/
+          cd prod
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add arlo
+          git diff --cached --quiet || { git commit -m "BAN ${{ steps.v.outputs.name }} (from Arlo@${GITHUB_SHA::7})" && git push; }
+
+      - name: Publish (or refresh) the release in prod
+        env:
+          GH_TOKEN: ${{ secrets.PROD_REPO_TOKEN }}
+          TAG: arlo-ban-v${{ steps.v.outputs.name }}
+        run: |
+          PROD=userxx09-afk/prod
+          if gh release view "$TAG" --repo "$PROD" >/dev/null 2>&1; then
+            gh release upload "$TAG" downloads/BAN.apk --clobber --repo "$PROD"
           else
-            gh release create "$TAG" downloads/BAN.apk --title "BAN ${{ steps.v.outputs.name }} for Android" --notes-file notes.txt --latest
+            gh release create "$TAG" downloads/BAN.apk --repo "$PROD" --target main --title "BAN ${{ steps.v.outputs.name }} for Android" --notes-file notes.txt --latest=false
           fi
-          echo "Download: https://github.com/${{ github.repository }}/releases/latest/download/BAN.apk" >> "$GITHUB_STEP_SUMMARY"
+          echo "Install: https://raw.githubusercontent.com/$PROD/main/arlo/BAN.apk" >> "$GITHUB_STEP_SUMMARY"

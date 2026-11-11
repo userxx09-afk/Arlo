@@ -1,7 +1,7 @@
 # Builds ArloKeeper-Setup.exe (Arlo Keeper for Windows, with its own Python and ffmpeg) and puts it
-# on the "windows-installer" release. That release is never marked latest, so the BAN.apk link
-# (.../releases/latest/download/BAN.apk) keeps pointing at the Android release.
-# Download: https://github.com/userxx09-afk/Arlo/releases/download/windows-installer/ArloKeeper-Setup.exe
+# on the "arlo-windows-installer" release in the public prod repo (this source repo is private).
+# Download: https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe
+# Needs the PROD_REPO_TOKEN secret.
 name: Windows installer
 
 on:
@@ -15,7 +15,7 @@ on:
       - '.github/workflows/windows-installer.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-installer
@@ -107,13 +107,14 @@ jobs:
           name: ArloKeeper-Setup
           path: dist/ArloKeeper-Setup.exe
 
-      - name: Publish to the windows-installer release
+      - name: Publish to the arlo-windows-installer release in prod
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PROD_REPO_TOKEN }}
+          GH_REPO: userxx09-afk/prod
           VERSION: ${{ steps.build.outputs.version }}
         run: |
-          $tag = 'windows-installer'
+          $tag = 'arlo-windows-installer'
           $notes = @"
           **Arlo Keeper $env:VERSION for Windows** (Windows 10/11, 64-bit). Built from $env:GITHUB_SHA.
 
@@ -125,9 +126,9 @@ jobs:
           $notes | Set-Content notes.md -Encoding utf8
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Arlo Keeper for Windows" --notes-file notes.md --latest=false --target $env:GITHUB_SHA
+            gh release create $tag --title "Arlo Keeper for Windows" --notes-file notes.md --latest=false --target main
           } else {
             gh release edit $tag --title "Arlo Keeper for Windows" --notes-file notes.md --latest=false
           }
           gh release upload $tag dist\ArloKeeper-Setup.exe --clobber
-          "Download: https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/ArloKeeper-Setup.exe" >> $env:GITHUB_STEP_SUMMARY
+          "Download: https://github.com/$env:GH_REPO/releases/download/$tag/ArloKeeper-Setup.exe" >> $env:GITHUB_STEP_SUMMARY

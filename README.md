@@ -32,7 +32,7 @@ needs a sign-in, so other apps on the home network (GarysTV) keep working.
 See [server/README.md](server/README.md). On Ubuntu: `sudo bash server/deploy/install.sh`
 (runs on port 8090 as a systemd service), or `docker compose up -d --build` in `server/`.
 
-**On Windows:** download [ArloKeeper-Setup.exe](https://github.com/userxx09-afk/Arlo/releases/download/windows-installer/ArloKeeper-Setup.exe)
+**On Windows:** download [ArloKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe)
 and run it (if Windows says it protected your PC: **More info → Run anyway**). It brings its own
 Python and ffmpeg, starts Arlo Keeper at every boot with no window (scheduled task "Arlo Keeper",
 running as SYSTEM, restarted if it stops), lets the home network reach port 8090, and opens
@@ -45,7 +45,7 @@ Only one Arlo Keeper can use an Arlo login at a time: Arlo signs out the other o
 
 ## Android app
 
-**Download on the phone:** [BAN.apk](https://github.com/userxx09-afk/Arlo/releases/latest/download/BAN.apk) (version 1.2, Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. After that, the app updates itself from this repo: it reads `downloads/latest.json` and offers the new APK.
+**Download on the phone:** [BAN.apk](https://raw.githubusercontent.com/userxx09-afk/prod/main/arlo/BAN.apk) (version 1.2, Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. After that, the app updates itself from the public prod repo: it reads `arlo/latest.json` there (copied from this repo's `downloads/`) and offers the new APK.
 
 See [android/README.md](android/README.md) to build it. `android\build.ps1` builds a signed APK and copies
 it to the server, where the Alerts page offers it (`/ban.apk`) to Android phones.
