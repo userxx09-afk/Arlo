@@ -228,7 +228,10 @@ def active_numbers_or_channel(s):
 @app.get("/connect")
 @_auth
 def connect():
-    return render_template("connect.html", accounts=recorder.accounts_view() if recorder else [])
+    from . import blink
+    return render_template("connect.html", accounts=recorder.accounts_view() if recorder else [],
+                           blink_accounts=recorder.blink.accounts_view() if recorder else [],
+                           blink_available=blink.AVAILABLE, blink_poll=blink.POLL_SECONDS)
 
 
 @app.post("/connect")
@@ -265,8 +268,43 @@ def connect_signout(aid):
 @app.get("/connect/state")
 @_auth
 def connect_state():
-    return jsonify([{k: a[k] for k in ("id", "connected", "signing_in", "waiting_for_code", "error")}
-                    for a in (recorder.accounts_view() if recorder else [])])
+    accs = (recorder.accounts_view() + recorder.blink.accounts_view()) if recorder else []
+    return jsonify([{k: a[k] for k in ("id", "connected", "signing_in", "waiting_for_code", "error")} for a in accs])
+
+
+@app.post("/connect/blink")
+@_auth
+def connect_blink():
+    user = request.form.get("username", "").strip()
+    pw = request.form.get("password", "")
+    if not user or not pw:
+        flash("Enter both the Blink email and password.", "error")
+        return redirect(url_for("connect") + "#blink")
+    try:
+        recorder.blink.add(user, pw)
+    except RuntimeError as e:
+        flash(str(e), "error")
+        return redirect(url_for("connect") + "#blink")
+    flash(f"Signing in to Blink as {user}…", "ok")
+    return redirect(url_for("connect") + "#blink")
+
+
+@app.post("/connect/blink/<aid>/code")
+@_auth
+def connect_blink_code(aid):
+    recorder.blink.submit_code(aid, request.form.get("code", ""))
+    flash("Code sent to Blink.", "ok")
+    return redirect(url_for("connect") + "#blink")
+
+
+@app.post("/connect/blink/<aid>/signout")
+@_auth
+def connect_blink_signout(aid):
+    from . import blink
+    a = blink.get_account(aid)
+    recorder.blink.sign_out(aid)
+    flash(f"Signed out of Blink ({a['username'] if a else 'that account'}). Its saved clips are still here.", "ok")
+    return redirect(url_for("connect") + "#blink")
 
 
 # --- notification settings ---------------------------------------------------
@@ -457,7 +495,7 @@ def _cams_full():
     for c in cams:
         r = last[c["id"]]
         out.append({k: c.get(k) for k in ("id", "name", "model", "battery", "unavailable", "motion",
-                                         "capturing", "last_error", "last_motion", "last_clip")}
+                                         "capturing", "last_error", "last_motion", "last_clip", "no_live")}
                    | {"viewing": liveview.viewing(c["id"]),
                       "thumb": f"/media/{r['thumb_path']}" if r and r.get("thumb_path") else None,
                       "last_key": r["key"] if r else None,
@@ -538,6 +576,8 @@ def _live_json(s):
 @_auth
 def api_live_start(cam_id):
     cam = recorder.camera(cam_id) if recorder else None
+    if not cam and str(cam_id).startswith("blink-"):
+        return jsonify({"state": "error", "error": "Live view isn't available for Blink cameras here. Use the Blink app."}), 404
     if not cam:
         return jsonify({"state": "error", "error": "That camera isn't available."}), 404
     return jsonify(_live_json(liveview.start(recorder.owner(cam_id), cam)))

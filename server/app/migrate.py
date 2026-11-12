@@ -43,7 +43,7 @@ CHUNK = 1024 * 1024
 PORTABLE = (
     "CLIP_MAX_SECONDS", "KEEP_DAYS", "MAX_STORAGE_GB", "LIBRARY_DAYS", "POLL_MINUTES",
     "USE_BASE_STATION_STORAGE", "CAPTURE_LIVE", "CAPTURE_CLOUD", "CAPTURE_COOLDOWN_SECONDS",
-    "TRANSCODE_H264", "NOTIFY_ON_MOTION", "NOTIFY_ON_CLIP", "NOTIFY_COOLDOWN_SECONDS",
+    "TRANSCODE_H264", "BLINK_POLL_SECONDS", "NOTIFY_ON_MOTION", "NOTIFY_ON_CLIP", "NOTIFY_COOLDOWN_SECONDS",
     "NTFY_URL", "NTFY_TOKEN", "PUSHOVER_TOKEN", "PUSHOVER_USER", "TWILIO_SID", "TWILIO_TOKEN",
     "TWILIO_FROM", "SMS_TO", "WEBHOOK_URL", "WEB_USER", "WEB_PASSWORD", "LOG_LEVEL",
     "ARLO_USERNAME", "ARLO_PASSWORD", "TFA_SOURCE", "TFA_TYPE", "TFA_HOST", "TFA_USERNAME", "TFA_PASSWORD",
@@ -81,7 +81,8 @@ def _files():
 
 def _clip_files():
     out = []
-    for root, _dirs, names in os.walk(config.CLIPS_DIR):
+    for root, dirs, names in os.walk(config.CLIPS_DIR):
+        dirs[:] = [d for d in dirs if d != "_popups"]      # Blink's short-lived pop-up pictures
         for n in names:
             if n.endswith((".part", ".tmp")):
                 continue

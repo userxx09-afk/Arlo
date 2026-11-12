@@ -61,6 +61,57 @@
   </form>
   <p class="muted" style="margin-top:12px">Passwords are saved on this server so it can reconnect after a restart. After the first sign-in, Arlo usually won't ask for a code again.</p>
 </section>
+
+<h2 id="blink" style="margin:26px 0 10px;font-size:19px">Blink cameras</h2>
+{% for a in blink_accounts %}
+<section class="panel acct">
+  <div class="top">
+    <h2>{% if a.connected %}<span class="ok">●</span>{% elif a.error %}<span class="bad">●</span>{% else %}<span class="muted">●</span>{% endif %} Blink · {{ a.username }}</h2>
+    <form method="post" action="{{ url_for('connect_blink_signout', aid=a.id) }}"
+          onsubmit="return confirm('Sign out of Blink ({{ a.username }})?\nBAN stops watching its cameras. Clips already saved stay.')">
+      <button class="danger">Sign out</button>
+    </form>
+  </div>
+  {% if a.connected %}
+  <p class="state"><b>Connected.</b> {{ a.cameras|length }} camera{{ '' if a.cameras|length == 1 else 's' }}: {{ a.cameras|join(', ') or 'none' }}. Checked every {{ blink_poll }} s{% if a.last_poll %}, last {{ (a.last_poll * 1000)|ago }}{% endif %}.</p>
+  {% elif a.waiting_for_code %}
+  <p class="state"><b>Enter the verification code.</b> Blink just sent it by email or text. Enter it within 10 minutes.</p>
+  <form class="row" method="post" action="{{ url_for('connect_blink_code', aid=a.id) }}" style="margin-top:10px">
+    <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required autofocus style="width:160px;font-size:20px;letter-spacing:3px">
+    <button class="primary">Verify</button>
+  </form>
+  {% elif a.signing_in %}
+  <p class="state"><b>Signing in…</b> This page updates on its own.</p>
+  {% else %}
+  {% if a.error %}<div class="flash error" style="margin-top:10px">Blink: {{ a.error }}</div>
+  {% else %}<p class="state">Not signed in. Enter the password to connect.</p>{% endif %}
+  {% if a.needs_login %}
+  <form method="post" action="{{ url_for('connect_blink') }}" style="margin-top:10px">
+    <input type="hidden" name="username" value="{{ a.username }}">
+    <div class="row"><input type="password" name="password" placeholder="Blink password" autocomplete="current-password" required style="flex:1">
+      <button class="primary">Sign in</button></div>
+  </form>
+  {% endif %}
+  {% endif %}
+</section>
+{% endfor %}
+
+<section class="panel">
+  <h2>{{ 'Add another Blink account' if blink_accounts else 'Add Blink cameras' }}</h2>
+  {% if not blink_available %}
+  <div class="flash error">This copy of Arlo Keeper doesn't have Blink support yet. Install the newest version.</div>
+  {% else %}
+  <p>Blink cameras pop up on GarysTV and send the same alerts as Arlo ones. Blink only reports motion once it has saved a clip:
+     in Blink's cloud (Blink plan), or on a USB drive in a <b>Sync Module 2</b> (no plan needed). The Blink system must be <b>armed</b>.
+     Motion shows up within about {{ blink_poll }} seconds plus the clip's length. Live view stays in the Blink app.</p>
+  <form method="post" action="{{ url_for('connect_blink') }}">
+    <div class="field"><label>Blink email</label><input type="text" name="username" autocomplete="username" autocapitalize="none" required></div>
+    <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
+    <div class="actions"><button class="primary">{{ 'Add account' if blink_accounts else 'Sign in to Blink' }}</button></div>
+  </form>
+  <p class="muted" style="margin-top:12px">In GarysTV, tick the Blink cameras under Settings &gt; Arlo, same as the Arlo ones.</p>
+  {% endif %}
+</section>
 </div>
 <script>
   // Refresh when an account's sign-in moves on (code needed, connected, failed), unless typing.
