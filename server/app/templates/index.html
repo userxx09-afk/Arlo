@@ -284,13 +284,13 @@
         : c.motion ? `<span class="pill motion">Motion</span>` : c.unavailable ? `<span class="pill off">Offline</span>` : "";
       const batt = c.battery == null ? "" : `<span class="batt ${c.battery < 20 ? "low" : ""}"><svg width="18" height="10" viewBox="0 0 18 10"><rect x=".5" y=".5" width="15" height="9" rx="2" fill="none" stroke="currentColor"/><rect x="2" y="2" width="${Math.max(1, Math.round(12 * c.battery / 100))}" height="6" rx="1" fill="currentColor"/><rect x="16" y="3" width="1.5" height="4" fill="currentColor"/></svg>${c.battery}%</span>`;
       return `<div class="cam" data-id="${esc(c.id)}">
-        <button class="shot" data-live="${esc(c.id)}" title="Watch live">${c.thumb ? `<img src="${esc(c.thumb)}" alt="" loading="lazy">` : `<span class="ph">${camIcon}</span>`}
-          ${pill}<span class="play">${playIcon}</span></button>
+        <button class="shot" ${c.no_live ? "" : `data-live="${esc(c.id)}"`} title="${c.no_live ? esc(c.model || "") : "Watch live"}">${c.thumb ? `<img src="${esc(c.thumb)}" alt="" loading="lazy">` : `<span class="ph">${camIcon}</span>`}
+          ${pill}${c.no_live ? "" : `<span class="play">${playIcon}</span>`}</button>
         <div class="body">
           <div class="top"><b>${esc(c.name)}</b>${batt}</div>
           <div class="muted">Motion ${ago(c.last_motion)} · Last clip ${c.last_clip_ms ? ago(c.last_clip_ms / 1000) : "not yet"}</div>
           ${c.last_error ? `<div class="err">${esc(c.last_error)}</div>` : ""}
-          <div class="btns"><button class="primary" data-live="${esc(c.id)}" ${c.unavailable ? "disabled" : ""}>▶ Watch live</button>
+          <div class="btns">${c.no_live ? "" : `<button class="primary" data-live="${esc(c.id)}" ${c.unavailable ? "disabled" : ""}>▶ Watch live</button>`}
             <button data-rec="${esc(c.id)}" ${c.capturing || c.unavailable ? "disabled" : ""}>${c.capturing ? "Recording…" : "● Record clip"}</button></div>
         </div></div>`;
     }).join("");

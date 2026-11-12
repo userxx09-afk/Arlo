@@ -1,5 +1,6 @@
 """Small web page for browsing, playing, starring and deleting saved clips."""
 import functools
+import logging
 import os
 import re
 import time
@@ -14,6 +15,7 @@ from flask import (Flask, Response, abort, flash, jsonify, redirect, render_temp
 from . import arlo_login, config, events, garystv, liveview, notify, remote, store
 
 app = Flask(__name__, template_folder="templates")
+log_web = logging.getLogger("web")
 
 
 def init_secret():
@@ -226,7 +228,10 @@ def active_numbers_or_channel(s):
 @app.get("/connect")
 @_auth
 def connect():
-    return render_template("connect.html", accounts=recorder.accounts_view() if recorder else [])
+    from . import blink
+    return render_template("connect.html", accounts=recorder.accounts_view() if recorder else [],
+                           blink_accounts=recorder.blink.accounts_view() if recorder else [],
+                           blink_available=blink.AVAILABLE, blink_poll=blink.POLL_SECONDS)
 
 
 @app.post("/connect")
@@ -263,8 +268,43 @@ def connect_signout(aid):
 @app.get("/connect/state")
 @_auth
 def connect_state():
-    return jsonify([{k: a[k] for k in ("id", "connected", "signing_in", "waiting_for_code", "error")}
-                    for a in (recorder.accounts_view() if recorder else [])])
+    accs = (recorder.accounts_view() + recorder.blink.accounts_view()) if recorder else []
+    return jsonify([{k: a[k] for k in ("id", "connected", "signing_in", "waiting_for_code", "error")} for a in accs])
+
+
+@app.post("/connect/blink")
+@_auth
+def connect_blink():
+    user = request.form.get("username", "").strip()
+    pw = request.form.get("password", "")
+    if not user or not pw:
+        flash("Enter both the Blink email and password.", "error")
+        return redirect(url_for("connect") + "#blink")
+    try:
+        recorder.blink.add(user, pw)
+    except RuntimeError as e:
+        flash(str(e), "error")
+        return redirect(url_for("connect") + "#blink")
+    flash(f"Signing in to Blink as {user}…", "ok")
+    return redirect(url_for("connect") + "#blink")
+
+
+@app.post("/connect/blink/<aid>/code")
+@_auth
+def connect_blink_code(aid):
+    recorder.blink.submit_code(aid, request.form.get("code", ""))
+    flash("Code sent to Blink.", "ok")
+    return redirect(url_for("connect") + "#blink")
+
+
+@app.post("/connect/blink/<aid>/signout")
+@_auth
+def connect_blink_signout(aid):
+    from . import blink
+    a = blink.get_account(aid)
+    recorder.blink.sign_out(aid)
+    flash(f"Signed out of Blink ({a['username'] if a else 'that account'}). Its saved clips are still here.", "ok")
+    return redirect(url_for("connect") + "#blink")
 
 
 # --- notification settings ---------------------------------------------------
@@ -455,7 +495,7 @@ def _cams_full():
     for c in cams:
         r = last[c["id"]]
         out.append({k: c.get(k) for k in ("id", "name", "model", "battery", "unavailable", "motion",
-                                         "capturing", "last_error", "last_motion", "last_clip")}
+                                         "capturing", "last_error", "last_motion", "last_clip", "no_live")}
                    | {"viewing": liveview.viewing(c["id"]),
                       "thumb": f"/media/{r['thumb_path']}" if r and r.get("thumb_path") else None,
                       "last_key": r["key"] if r else None,
@@ -536,6 +576,8 @@ def _live_json(s):
 @_auth
 def api_live_start(cam_id):
     cam = recorder.camera(cam_id) if recorder else None
+    if not cam and str(cam_id).startswith("blink-"):
+        return jsonify({"state": "error", "error": "Live view isn't available for Blink cameras here. Use the Blink app."}), 404
     if not cam:
         return jsonify({"state": "error", "error": "That camera isn't available."}), 404
     return jsonify(_live_json(liveview.start(recorder.owner(cam_id), cam)))
@@ -661,3 +703,121 @@ def manifest():
 def health():
     s = recorder.status if recorder else {}
     return jsonify({"ok": bool(s.get("connected")), **{k: v for k, v in s.items() if k != "cameras"}})
+
+
+# --- moving to another server (export / import / ban.tapper.co) -----------------------
+def _home_only(fn):
+    """Exports hold every password; imports replace everything. Only from the home network."""
+    @functools.wraps(fn)
+    def wrapper(*a, **kw):
+        if remote.is_remote(request):
+            return Response("Moving Arlo Keeper only works from the home network.", 403)
+        return fn(*a, **kw)
+    return wrapper
+
+
+def _move_page(results=None, error=None):
+    from . import migrate, tunnel
+    import platform
+    return render_template("move.html", info=migrate.summary(), last=migrate.last_result(),
+                           moved=store.get_setting("moved_away"), tunnel=tunnel.settings(),
+                           hostname=tunnel.hostname(), svc=tunnel.service_state(), results=results,
+                           error=error, this_host=platform.node(), port=config.WEB_PORT,
+                           windows=os.name == "nt")
+
+
+@app.get("/move")
+@_auth
+@_home_only
+def move():
+    return _move_page()
+
+
+@app.get("/move/export.zip")
+@_auth
+@_home_only
+def move_export():
+    from . import migrate
+    clips = request.args.get("clips", "1") != "0"
+    import platform
+    name = f"ban-export-{platform.node() or 'server'}-{time.strftime('%Y%m%d-%H%M')}{'' if clips else '-no-clips'}.zip"
+    return Response(migrate.stream_export(include_clips=clips), mimetype="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store",
+                             "X-Accel-Buffering": "no"})
+
+
+@app.post("/api/move/import")
+@_auth
+@_home_only
+def move_import():
+    """The export .zip as the raw request body (the page sends it with fetch, with progress)."""
+    from . import migrate
+    dest = migrate.pending_path()
+    part = dest + ".part"
+    try:
+        with open(part, "wb") as f:
+            while True:
+                chunk = request.stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+        m = migrate.read_manifest(part)
+    except ValueError as e:
+        os.remove(part)
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except OSError as e:
+        return jsonify({"ok": False, "error": f"Couldn't save the upload: {e}"}), 500
+    os.replace(part, dest)
+    try:
+        os.remove(migrate.result_path())
+    except OSError:
+        pass
+    migrate.restart_soon()
+    return jsonify({"ok": True, "from": m.get("made_by"), "made": m.get("made"), "clips": m.get("clips")})
+
+
+@app.get("/api/move/state")
+@_auth
+@_home_only
+def move_state():
+    from . import migrate
+    return jsonify({"last": migrate.last_result(), "pending": os.path.exists(migrate.pending_path())})
+
+
+@app.post("/move/tunnel")
+@_auth
+@_home_only
+def move_tunnel():
+    from . import tunnel
+    host = request.form.get("hostname", "").strip() or None
+    try:
+        if request.form.get("api_token", "").strip():
+            r = tunnel.setup_with_api(request.form["api_token"], host)
+        elif request.form.get("tunnel_token", "").strip():
+            r = tunnel.setup_with_token(request.form["tunnel_token"], host)
+        else:
+            return _move_page(error="Paste a Cloudflare API token (or a tunnel token).")
+    except tunnel.TunnelError as e:
+        return _move_page(error=str(e))
+    except Exception as e:
+        log_web.exception("tunnel setup failed")
+        return _move_page(error=f"Something went wrong: {e}")
+    return _move_page(results=r["steps"])
+
+
+@app.post("/move/retire")
+@_auth
+@_home_only
+def move_retire():
+    """This server's job moved: stop signing in to Arlo here (only one place can at a time)."""
+    from . import migrate
+    if request.form.get("action") == "back":
+        with store.connect() as c:
+            c.execute("DELETE FROM settings WHERE key='moved_away'")
+        flash("Recording is turning back on here. Make sure the other server is off.", "ok")
+    else:
+        store.set_setting("moved_away", {"at": time.strftime("%Y-%m-%d %H:%M"),
+                                         "to": request.form.get("to", "").strip()[:80]})
+        flash("Recording is off here. Arlo Keeper restarts in a moment without signing in to Arlo.", "ok")
+    migrate.restart_soon()
+    return redirect(url_for("move"))

@@ -20,6 +20,39 @@ android/   BAN for Android: the web page laid out for a phone, plus motion notif
 - Lays itself out for a phone with a bottom tab bar.
 - The photo at the top: tap it to change it, or put `photo-default.jpg` in `server/app/static/`.
 
+## Blink cameras
+
+Blink cameras can sit next to the Arlo ones (**Arlo** page → **Add Blink cameras**; email, password,
+then the code Blink sends). Their motion pops up on GarysTV like an Arlo camera's (tick them in
+GarysTV's Settings > Arlo), goes to the phone app, and sends the usual alerts; the clip is saved
+with the others. Uses [blinkpy](https://github.com/fronzbot/blinkpy).
+
+- Blink has no instant motion push: BAN checks every 30 s (`BLINK_POLL_SECONDS`).
+- Blink only reports motion once it has saved a clip, in its cloud (Blink plan, or an account from
+  before April 2020) or on a USB drive in a **Sync Module 2** (no plan). The system must be armed.
+- If the clip can't be downloaded, the GarysTV pop-up shows the camera's motion picture instead.
+- No live view in BAN for Blink (use the Blink app). **Record clip** works.
+
+## Moving to another server
+
+**Alerts → Move to another server** (`/move`, home network only):
+
+1. Install Arlo Keeper on the new server (Windows: the setup below). Don't sign in to Arlo there.
+2. Old server: **Download export** (one .zip: Arlo and Blink accounts, sessions, phone numbers,
+   alert settings, the away-from-home password, Barb's photo, the clips; or settings only).
+3. Old server: **Turn off recording here** (Arlo allows one server per login).
+4. New server, at `http://localhost:8090/move`: **Import** the .zip. It restarts and brings it all in.
+5. New server: **Point ban.tapper.co here**, with a Cloudflare API token (Account · Cloudflare
+   Tunnel · Edit and Zone · DNS · Edit). It makes a tunnel for this server, moves the
+   ban.tapper.co DNS record to it, takes the name off the old tunnel (trains.tapper.co etc. stay)
+   and installs cloudflared as a Windows service. Or paste a tunnel token made in the dashboard.
+6. Delete the export file: it holds the passwords.
+
+Command line instead (handy for very big exports): Ubuntu `sudo bash server/deploy/move.sh export FILE`
+/ `import FILE`; Windows (admin) `"C:\Program Files\Arlo Keeper\import.ps1" FILE`.
+If the old tunnel was set up from a config file on tapper (not in the Cloudflare dashboard), the DNS
+move still sends ban.tapper.co to the new server; remove the ban line from tapper's config.yml to tidy up.
+
 ## Away from home
 
 Remote access goes through a Cloudflare Tunnel (no port forwarding). Requests that arrive through
@@ -35,7 +68,8 @@ See [server/README.md](server/README.md). On Ubuntu: `sudo bash server/deploy/in
 **On Windows:** download [ArloKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe)
 and run it (if Windows says it protected your PC: **More info → Run anyway**). It brings its own
 Python and ffmpeg, starts Arlo Keeper at every boot with no window (scheduled task "Arlo Keeper",
-running as SYSTEM, restarted if it stops), lets the home network reach port 8090, and opens
+running as SYSTEM, restarted if it stops), lets the home network reach port 8090, includes
+cloudflared for ban.tapper.co (see Moving to another server), and opens
 http://localhost:8090 to sign in to Arlo. The Start menu has Restart, the log and the settings file.
 Clips, settings and the Arlo sign-in are in `C:\ProgramData\ArloKeeper` and survive updates and
 uninstalling. To update, run the newest setup over the old one. GitHub Actions builds it

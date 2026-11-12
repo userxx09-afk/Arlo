@@ -62,6 +62,11 @@ jobs:
           Copy-Item (Get-ChildItem ff -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName "$b\ffmpeg"
           Copy-Item (Get-ChildItem ff -Recurse -Filter ffprobe.exe | Select-Object -First 1).FullName "$b\ffmpeg"
 
+          # cloudflared, for pointing ban.tapper.co at this PC from the Move page
+          New-Item -ItemType Directory "$b\cloudflared" | Out-Null
+          Invoke-WebRequest 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile "$b\cloudflared\cloudflared.exe"
+          & "$b\cloudflared\cloudflared.exe" --version
+
       - name: Check the bundle starts and serves the page
         shell: pwsh
         run: |

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Move to another server · BAN{% endblock %}
+{% block header %}<div class="meta"><span>Move to another server</span></div>{% endblock %}
+{% block style %}
+  ol.steps { margin:0 0 12px 18px; padding:0; color:var(--muted); font-size:14px; }
+  ol.steps li { margin:3px 0; }
+  .ok { color:var(--green); } .bad { color:var(--danger); }
+  progress { width:100%; height:14px; margin-top:10px; }
+  code { background:var(--panel2); padding:1px 5px; border-radius:5px; font-size:13px; }
+{% endblock %}
+{% block body %}
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if results %}<div class="flash ok"><b>ban.tapper.co</b><ul style="margin:6px 0 0 18px;padding:0">{% for r in results %}<li>{{ r }}</li>{% endfor %}</ul></div>{% endif %}
+
+{% if moved %}
+<section class="panel">
+  <h2>⏸️ Recording is off on this server</h2>
+  <p>It was moved{% if moved.to %} to {{ moved.to }}{% endif %} on {{ moved.at }}. This server doesn't sign in to Arlo, so the new one can (Arlo allows one at a time). Saved clips here are still viewable.</p>
+  <form method="post" action="{{ url_for('move_retire') }}" onsubmit="return confirm('Turn recording back on here? Turn the other server off first, or Arlo keeps signing one of them out.')">
+    <button name="action" value="back">Turn recording back on here</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>How moving works</h2>
+  <ol class="steps">
+    <li>On the <b>new</b> server: install Arlo Keeper (Windows: <a href="https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe">ArloKeeper-Setup.exe</a>). Don't sign in to Arlo there.</li>
+    <li>On the <b>old</b> server: <b>Download export</b> below.</li>
+    <li>On the <b>old</b> server: <b>Turn off recording here</b> (Arlo only allows one server per login).</li>
+    <li>On the <b>new</b> server (open <code>http://localhost:{{ port }}/move</code> there): <b>Import</b> the file. Arlo accounts, phone numbers, alert settings, the away-from-home password, Barb's photo and the clips all come along.</li>
+    <li>On the <b>new</b> server: <b>Point ban.tapper.co here</b>. Phones away from home follow automatically; on the home Wi-Fi the app finds the new server by itself.</li>
+    <li>Delete the export file: it holds the Arlo and Twilio passwords.</li>
+  </ol>
+  <p class="muted">This server: <b>{{ this_host }}</b> · {{ info.clips }} clips ({{ (info.clip_bytes / 1e9)|round(2) }} GB)</p>
+</section>
+
+<section class="panel">
+  <h2>1 · Export from this server</h2>
+  <p>One .zip with everything. With clips it's about {{ (info.clip_bytes / 1e9)|round(1) }} GB; without, it's small and the new server starts with an empty Recordings list (the clips stay here).</p>
+  <div class="actions">
+    <a class="btn primary" href="{{ url_for('move_export') }}">Download export (with clips)</a>
+    <a class="btn" href="{{ url_for('move_export', clips=0) }}">Settings and sign-ins only</a>
+  </div>
+</section>
+
+{% if not moved %}
+<section class="panel">
+  <h2>2 · Turn off recording here</h2>
+  <p>After exporting, so the new server can sign in to Arlo. Clips stay viewable here; you can turn it back on.</p>
+  <form method="post" action="{{ url_for('move_retire') }}" class="row" onsubmit="return confirm('Stop recording on this server?')">
+    <input type="text" name="to" placeholder="Moved to (optional, e.g. workstation)" style="flex:1;min-width:200px">
+    <button class="danger" name="action" value="retire">Turn off recording here</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>3 · Import into this server</h2>
+  <p>Replaces this server's settings and Arlo sign-ins with the export's and adds its clips (clips already here are kept). Arlo Keeper restarts to do it. The current database is kept as a backup in the data folder.</p>
+  {% if last %}
+    {% if last.ok %}<p class="ok">✅ Imported from {{ last.from }} (export made {{ last.made }}) on {{ last.finished }}: {{ last.clips_added }} clips added{% if last.clips_kept %}, {{ last.clips_kept }} already here{% endif %}{% if last.settings_changed %}; settings brought over: {{ last.settings_changed|join(', ') }}{% endif %}.</p>
+    {% else %}<p class="bad">⚠️ The last import failed: {{ last.error }}</p>{% endif %}
+  {% endif %}
+  <div class="row">
+    <input type="file" id="imp-file" accept=".zip,application/zip">
+    <button class="primary" id="imp-go">Import</button>
+  </div>
+  <progress id="imp-bar" value="0" max="1" hidden></progress>
+  <p class="muted" id="imp-state"></p>
+</section>
+
+<section class="panel" id="tunnel">
+  <h2>4 · Point ban.tapper.co here</h2>
+  {% if tunnel.hostname %}<p class="muted" style="margin-top:-6px">✅ {{ tunnel.hostname }} was pointed here on {{ tunnel.set_up }}{% if tunnel.tunnel_name %} (tunnel “{{ tunnel.tunnel_name }}”){% endif %}.{% if svc %} cloudflared is {{ svc }}.{% endif %}</p>{% endif %}
+  <p>Makes a Cloudflare tunnel for this server, moves the <b>{{ hostname }}</b> DNS record to it and takes the name off the old server's tunnel (its other names, like trains.tapper.co, stay put). {% if windows %}cloudflared is installed as a Windows service.{% else %}On Linux it shows the one command to run.{% endif %}</p>
+  <p class="muted">Make the API token at dash.cloudflare.com → My Profile → API Tokens → Create Token → Custom, with <b>Account · Cloudflare Tunnel · Edit</b> and <b>Zone · DNS · Edit</b> (zone tapper.co). It's used once and not saved.</p>
+  <form method="post" action="{{ url_for('move_tunnel') }}">
+    <div class="field"><label>Name</label><input type="text" name="hostname" value="{{ hostname }}" autocapitalize="none"></div>
+    <div class="field"><label>Cloudflare API token</label><input type="password" name="api_token" autocomplete="off"></div>
+    <details style="margin:4px 0 8px"><summary class="muted">Or: I made the tunnel in the Cloudflare dashboard</summary>
+      <div class="field" style="margin-top:8px"><label>Tunnel token</label><input type="password" name="tunnel_token" autocomplete="off" placeholder="the long text after 'cloudflared service install'"></div>
+      <p class="muted">In the dashboard, give that tunnel the public hostname {{ hostname }} → <code>http://localhost:{{ port }}</code>.</p>
+    </details>
+    <div class="actions"><button class="primary" onclick="this.textContent='Working… (up to a minute)'">Point {{ hostname }} here</button></div>
+  </form>
+</section>
+{% endblock %}
+{% block script %}
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const state = (t) => { $("#imp-state").textContent = t; };
+  $("#imp-go").onclick = () => {
+    const f = $("#imp-file").files[0];
+    if (!f) { state("Choose the export .zip first."); return; }
+    if (!confirm("Import " + f.name + "?\nThis server's settings and Arlo sign-ins are replaced by the export's, then Arlo Keeper restarts.")) return;
+    const x = new XMLHttpRequest(), bar = $("#imp-bar");
+    bar.hidden = false; $("#imp-go").disabled = true;
+    x.open("POST", "/api/move/import");
+    x.setRequestHeader("Content-Type", "application/zip");
+    x.upload.onprogress = (e) => { if (e.lengthComputable) { bar.value = e.loaded / e.total; state("Uploading… " + Math.round(100 * e.loaded / e.total) + "%"); } };
+    x.onload = () => {
+      let r = {}; try { r = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status !== 200 || !r.ok) { $("#imp-go").disabled = false; state("Import failed: " + (r.error || x.status)); return; }
+      state("Uploaded (" + (r.clips || 0) + " clips, from " + r.from + "). Restarting and importing… this page reloads when it's done.");
+      waitForRestart();
+    };
+    x.onerror = () => { $("#imp-go").disabled = false; state("Upload failed. Is Arlo Keeper still running?"); };
+    x.send(f);
+  };
+  function waitForRestart() {
+    let wentDown = false, tries = 0;
+    const t = setInterval(async () => {
+      tries++;
+      try {
+        const s = await (await fetch("/api/move/state", { cache: "no-store" })).json();
+        if (!s.pending && s.last && (wentDown || tries > 20)) { clearInterval(t); location.reload(); }
+      } catch (e) { wentDown = true; }
+      if (tries > 600) { clearInterval(t); state("Still working on it. Reload this page in a while."); }
+    }, 2000);
+  }
+})();
+</script>
+{% endblock %}
