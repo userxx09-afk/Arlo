@@ -23,13 +23,14 @@ import java.net.URL;
 import java.security.MessageDigest;
 
 /**
- * Updates from GitHub. downloads/latest.json in the repo says which version is newest and where
+ * Updates from GitHub. latest.json in the public prod repo (arlo/, copied there from this
+ * repo's downloads/ by the "Publish BAN release" workflow) says which version is newest and where
  * its APK is; if it's newer than this one, BAN downloads it, checks its SHA-256, and hands it to
  * Android's installer, which asks you to confirm. Updates install over the old app because every
  * version is signed with the same key.
  */
 final class Updater {
-    static final String LATEST = "https://raw.githubusercontent.com/userxx09-afk/Arlo/main/downloads/latest.json";
+    static final String LATEST = "https://raw.githubusercontent.com/userxx09-afk/prod/main/arlo/latest.json";
     static volatile String state = "";
 
     private Updater() {}
