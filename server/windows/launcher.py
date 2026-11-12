@@ -118,6 +118,8 @@ def main():
     if not env.get("PUBLIC_URL"):
         env["PUBLIC_URL"] = "http://%s:%s" % (local_ip(), env["WEB_PORT"])
     env["PATH"] = os.path.join(HERE, "ffmpeg") + os.pathsep + env.get("PATH", "")
+    env["SETTINGS_FILE"] = SETTINGS                     # the Move page's import adds settings here
+    env["CLOUDFLARED"] = os.path.join(HERE, "cloudflared", "cloudflared.exe")   # for ban.tapper.co
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
 

@@ -70,6 +70,14 @@
   </form>
 </section>
 
+{% if not outside %}
+<section class="panel">
+  <h2>🚚 Move to another server</h2>
+  <p>Export everything from this server and import it on a new one (Windows or Ubuntu), then point ban.tapper.co at it.</p>
+  <a class="btn" href="{{ url_for('move') }}">Move to another server</a>
+</section>
+{% endif %}
+
 <form method="post" action="{{ url_for('save_settings') }}">
 <section class="panel">
   <h2>Text message account (Twilio)</h2>
