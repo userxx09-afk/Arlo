@@ -304,6 +304,26 @@ public class MainActivity extends Activity {
             return MotionService.state;
         }
 
+        /** {"all": true|false, "cams": ["id", ...]}: which cameras notify on this phone. */
+        @JavascriptInterface public String cameraChoice() {
+            try {
+                return new org.json.JSONObject().put("all", Prefs.allCameras(MainActivity.this))
+                        .put("cams", new org.json.JSONArray(Prefs.pickedCameras(MainActivity.this))).toString();
+            } catch (Exception e) {
+                return "{\"all\":true,\"cams\":[]}";
+            }
+        }
+
+        @JavascriptInterface public void setCameraChoice(boolean all, String camsJson) {
+            java.util.Set<String> picked = new java.util.HashSet<>();
+            try {
+                org.json.JSONArray a = new org.json.JSONArray(camsJson == null ? "[]" : camsJson);
+                for (int i = 0; i < a.length(); i++) picked.add(a.getString(i));
+            } catch (Exception ignored) {
+            }
+            Prefs.setCameras(MainActivity.this, all, picked);
+        }
+
         @JavascriptInterface public String server() { return Prefs.bare(MainActivity.this.server()); }
 
         @JavascriptInterface public String version() { return MainActivity.this.version(); }

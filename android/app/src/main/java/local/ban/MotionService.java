@@ -238,6 +238,7 @@ public class MotionService extends Service {
         String camera = ev.optString("camera", "Camera");
         String camId = ev.optString("camera_id", camera);
         boolean test = "test".equals(ev.optString("reason"));
+        if (!test && !Prefs.wantsCamera(this, camId)) return;   // not one of the cameras picked for this phone
         long started = ev.optLong("started", ev.optLong("time"));
         String when = DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(started));
         int id = 1000 + Math.abs(camId.hashCode() % 100000);

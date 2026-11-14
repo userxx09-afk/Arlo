@@ -60,6 +60,23 @@ final class Prefs {
         p(c).edit().putBoolean("notify", on).apply();
     }
 
+    /** Which cameras notify: all of them (the default), or only the ones picked on the Alerts page. */
+    static boolean allCameras(Context c) {
+        return p(c).getBoolean("notify_all_cameras", true);
+    }
+
+    static java.util.Set<String> pickedCameras(Context c) {
+        return new java.util.HashSet<>(p(c).getStringSet("notify_cameras", new java.util.HashSet<>()));
+    }
+
+    static void setCameras(Context c, boolean all, java.util.Set<String> picked) {
+        p(c).edit().putBoolean("notify_all_cameras", all).putStringSet("notify_cameras", new java.util.HashSet<>(picked)).apply();
+    }
+
+    static boolean wantsCamera(Context c, String camId) {
+        return allCameras(c) || pickedCameras(c).contains(camId);
+    }
+
     static long lastEvent(Context c) {
         return p(c).getLong("last_event", 0);
     }

@@ -1,7 +1,7 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2",
+  "versionCode": 4,
+  "versionName": "1.3",
   "apk": "https://raw.githubusercontent.com/userxx09-afk/prod/main/arlo/BAN.apk",
-  "sha256": "56cd1b25982b4e22f5b894f36c6404632c8c194d97b2945d68f4ddcb47e6b7ed",
-  "notes": "Finds BAN by itself (home Wi-Fi first, then ban.tapper.co) and updates itself from GitHub."
+  "sha256": "021de905dda6b616ea5b4037b7400f71d8a7e3273211b12499de5962a2effe7c",
+  "notes": "Notifications: all cameras by default, or only the cameras you pick (Alerts > This phone)."
 }
