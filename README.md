@@ -28,7 +28,7 @@ android/   BCN for Android: the web page laid out for a phone, plus motion notif
 
 Blink cameras can sit next to the Arlo ones (**Arlo** page → **Add Blink cameras**; email, password,
 then the code Blink sends). Their motion pops up on GarysTV like an Arlo camera's (tick them in
-GarysTV's Settings > Arlo), goes to the phone app, and sends the usual alerts; the clip is saved
+GarysTV's Settings > Cameras), goes to the phone app, and sends the usual alerts; the clip is saved
 with the others. Uses [blinkpy](https://github.com/fronzbot/blinkpy).
 
 - Blink has no instant motion push: BCN checks every 30 s (`BLINK_POLL_SECONDS`).
@@ -41,7 +41,7 @@ with the others. Uses [blinkpy](https://github.com/fronzbot/blinkpy).
 
 **Arlo → Laview & IP cameras** (`/connect/ip`) adds cameras that send video on the home network:
 Laview IP cameras and recorders (NVR/DVR), and most RTSP or ONVIF cameras. They work like Arlo ones:
-motion pops up on GarysTV (tick them in Settings › Arlo; they have their own "Laview & IP cameras"
+motion pops up on GarysTV (tick them in Settings › Cameras; they have their own "Laview & IP cameras"
 account tab), goes to the phone app and the alerts, records a clip, and Live view works.
 
 Enter the camera's address, user name (usually `admin`) and the camera's own password. BCN works out
@@ -150,7 +150,7 @@ not at an IP address. cloudflared on the Camera Keeper server carries it to `htt
   or VPN address: `http://<server>:8090` on the home network, or the TapperVPN address (tapper is
   `http://100.64.0.2:8090`). Those need no password.
 
-**GarysTV through bcn.tapper.co** (clips only): Settings › Arlo › address
+**GarysTV through bcn.tapper.co** (clips only): Settings › Cameras › address
 `https://name:password@bcn.tapper.co`, with the away-from-home name and password from
 **Alerts → Away from home**. GarysTV sends them with every request (HTTP Basic); characters like
 `@` or `:` in the password are written `%40` and `%3A`. Eight wrong tries lock that address out

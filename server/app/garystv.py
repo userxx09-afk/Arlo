@@ -1,6 +1,6 @@
 """Tells GarysTV (the TV/DVR app) when a motion clip starts, so it can pop the clip up on the TV.
 
-A GarysTV with Arlo turned on (its Settings > Arlo) signs itself up here every few minutes
+A GarysTV with Arlo turned on (its Settings > Cameras) signs itself up here every few minutes
 (POST /api/subscribe). Sign-ups nobody renews for 30 minutes are dropped, so a GarysTV
 that was switched off or had Arlo turned off stops getting calls.
 """

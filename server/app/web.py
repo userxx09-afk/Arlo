@@ -144,7 +144,7 @@ def cameras_json():
 @app.get("/api/cameras")
 @_auth
 def api_cameras():
-    """The cameras, for GarysTV's Settings > Arlo."""
+    """The cameras, for GarysTV's Settings > Cameras."""
     s = recorder.status if recorder else {}
     cams = recorder.cameras_view() if recorder else []
     return jsonify({"connected": bool(s.get("connected")), "modes": recorder.modes() if recorder else {},
