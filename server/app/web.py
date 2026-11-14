@@ -12,7 +12,7 @@ from datetime import timedelta
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
                    send_from_directory, session, url_for)
 
-from . import arlo_login, config, events, garystv, liveview, notify, remote, store
+from . import arlo_login, config, events, garystv, ipcam, liveview, notify, remote, store
 
 app = Flask(__name__, template_folder="templates")
 log_web = logging.getLogger("web")
@@ -161,12 +161,14 @@ def _accounts_list():
     return ([{"username": a["username"], "brand": "arlo", "connected": a["connected"],
               "waiting_for_code": a["waiting_for_code"]} for a in recorder.accounts_view()]
             + [{"username": a["username"], "brand": "blink", "connected": a["connected"],
-                "waiting_for_code": a["waiting_for_code"]} for a in recorder.blink.accounts_view()])
+                "waiting_for_code": a["waiting_for_code"]} for a in recorder.blink.accounts_view()]
+            + ([{"username": ipcam.ACCOUNT, "brand": ipcam.BRAND, "connected": recorder.ipcams.connected(),
+                 "waiting_for_code": False}] if recorder.ipcams.any() else []))
 
 
 def _account_cameras(account):
     """The camera ids on one account: "arlo:email", "blink:email", or just the email."""
-    brand, user = account.split(":", 1) if account.startswith(("arlo:", "blink:")) else ("", account)
+    brand, user = account.split(":", 1) if account.startswith(("arlo:", "blink:", "ipcam:")) else ("", account)
     cams = recorder.cameras_view() if recorder else []
     return [c["id"] for c in cams if (c.get("account") or "").lower() == user.lower()
             and (not brand or (c.get("brand") or "arlo") == brand)]
@@ -345,6 +347,58 @@ def connect_blink_signout(aid):
     recorder.blink.sign_out(aid)
     flash(f"Signed out of Blink ({a['username'] if a else 'that account'}). Its saved clips are still here.", "ok")
     return redirect(url_for("connect") + "#blink")
+
+
+# --- Laview and other IP cameras (RTSP / ONVIF) -------------------------------
+@app.get("/connect/ip")
+@_auth
+def ipcams_page():
+    return render_template("ipcams.html", cams=recorder.ipcams.cameras_view() if recorder else [],
+                           saved={c["id"]: c for c in ipcam.cameras()})
+
+
+@app.get("/connect/ip/state")
+@_auth
+def ipcams_state():
+    return jsonify(recorder.ipcams.cameras_view() if recorder else [])
+
+
+@app.post("/connect/ip")
+@_auth
+def ipcams_add():
+    try:
+        ids = recorder.ipcams.add(request.form)
+    except ValueError as e:
+        flash(str(e), "error")
+        return redirect(url_for("ipcams_page"))
+    flash(f"Added {len(ids)} camera{'' if len(ids) == 1 else 's'}. BAN is looking for the video now; "
+          "this page updates on its own (finding an unknown camera can take a minute).", "ok")
+    return redirect(url_for("ipcams_page"))
+
+
+@app.post("/connect/ip/<cid>/<action>")
+@_auth
+def ipcams_action(cid, action):
+    if action == "remove":
+        c = ipcam.get(cid)
+        recorder.ipcams.remove(cid)
+        flash(f"Removed {c['name'] if c else 'that camera'}. Its saved clips stay.", "ok")
+    elif action == "retry":
+        recorder.ipcams.restart(cid)
+        flash("Looking at that camera again.", "ok")
+    elif action == "rename":
+        ipcam.rename(cid, request.form.get("name", ""))
+        recorder.ipcams.restart(cid)
+    else:
+        abort(404)
+    return redirect(url_for("ipcams_page"))
+
+
+@app.post("/connect/ip/find")
+@_auth
+def ipcams_find():
+    """Cameras on this network that answer ONVIF or Hikvision/Laview SADP discovery."""
+    return jsonify(ipcam.discover())
 
 
 # --- notification settings ---------------------------------------------------

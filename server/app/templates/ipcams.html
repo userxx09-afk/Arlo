@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Laview & IP cameras · BAN{% endblock %}
+{% block header %}<div class="meta"><span>Laview & IP cameras</span></div>{% endblock %}
+{% block style %}
+  .acct .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .acct .top h2 { margin:0; }
+  .acct .top .btns { margin-left:auto; display:flex; gap:6px; }
+  .acct .top form { margin:0; }
+  .acct .state { margin:6px 0 0; font-size:14px; color:var(--muted); }
+  .acct .state b { color:var(--ink); }
+  .acct dl { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:8px 0 0; font-size:13px; color:var(--muted); }
+  .acct dt { color:var(--ink); }
+  .acct dd { margin:0; word-break:break-all; }
+  .ok { color:var(--green); } .bad { color:var(--danger); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }
+  @media (max-width:700px) { .grid2 { grid-template-columns:1fr; } }
+  details summary { cursor:pointer; margin:8px 0; }
+  #found .row { align-items:center; margin:6px 0; }
+{% endblock %}
+{% block body %}
+{% macro fields(s) %}
+  <div class="grid2">
+    <div class="field"><label>Name</label><input type="text" name="name" value="{{ s.name or '' }}" placeholder="Front porch"></div>
+    <div class="field"><label>Camera or recorder address</label><input type="text" name="host" value="{{ s.host or '' }}" placeholder="192.168.4.60" autocapitalize="none" required></div>
+    <div class="field"><label>User name</label><input type="text" name="username" value="{{ s.username or 'admin' }}" autocapitalize="none" autocomplete="off"></div>
+    <div class="field"><label>Password</label><input type="password" name="password" autocomplete="new-password" placeholder="{{ 'saved — leave blank to keep' if s.password else 'the camera\'s password' }}"></div>
+  </div>
+  <details {{ 'open' if s.rtsp_url or (s.kind and s.kind != 'auto') else '' }}>
+    <summary class="muted">More: type, channel, ports, RTSP address, motion</summary>
+    <div class="grid2">
+      <div class="field"><label>Type</label><select name="kind">
+        {% for v, t in [('auto', 'Find out by itself'), ('hikvision', 'Laview / Hikvision-type'), ('dahua', 'Laview / Dahua-type'), ('onvif', 'Any ONVIF camera'), ('rtsp', 'RTSP address only')] %}
+        <option value="{{ v }}" {{ 'selected' if (s.kind or 'auto') == v }}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Channel (on a recorder)</label><input type="number" name="channel" min="1" value="{{ s.channel or 1 }}"></div>
+      {% if not s.id %}<div class="field"><label>How many channels to add</label><input type="number" name="channels" min="1" max="64" value="1"></div>{% endif %}
+      <div class="field"><label>Web port</label><input type="number" name="http_port" value="{{ s.http_port or '' }}" placeholder="80"></div>
+      <div class="field"><label>RTSP port</label><input type="number" name="rtsp_port" value="{{ s.rtsp_port or '' }}" placeholder="554"></div>
+      <div class="field"><label>ONVIF port</label><input type="number" name="onvif_port" value="{{ s.onvif_port or '' }}" placeholder="80, 8000, 8899…"></div>
+      <div class="field"><label>Motion</label><select name="motion">
+        {% for v, t in [('auto', 'From the camera, else BAN watches the video'), ('camera', 'Only from the camera'), ('video', 'BAN watches the video'), ('off', 'Off (live view and Record clip only)')] %}
+        <option value="{{ v }}" {{ 'selected' if (s.motion or 'auto') == v }}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="field"><label>When BAN watches the video</label><select name="sensitivity">
+        {% for v, t in [('low', 'Less sensitive'), ('medium', 'Normal'), ('high', 'More sensitive')] %}
+        <option value="{{ v }}" {{ 'selected' if (s.sensitivity or 'medium') == v }}>{{ t }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="field"><label>RTSP address (only if BAN can't find the video)</label><input type="text" name="rtsp_url" value="{{ s.rtsp_url or '' }}" placeholder="rtsp://192.168.4.60:554/Streaming/Channels/101" autocapitalize="none"></div>
+    <div class="field"><label>Small RTSP stream (optional, used for watching motion)</label><input type="text" name="sub_url" value="{{ s.sub_url or '' }}" placeholder="rtsp://192.168.4.60:554/Streaming/Channels/102" autocapitalize="none"></div>
+  </details>
+{% endmacro %}
+<p><a href="{{ url_for('connect') }}">‹ Arlo and Blink accounts</a></p>
+
+<div id="cams">
+{% for c in cams %}
+<section class="panel acct" data-id="{{ c.id }}">
+  <div class="top">
+    <h2>{% if not c.unavailable %}<span class="ok">●</span>{% elif c.detail.checking %}<span class="muted">●</span>{% else %}<span class="bad">●</span>{% endif %} {{ c.name }}</h2>
+    <div class="btns">
+      <form method="post" action="{{ url_for('ipcams_action', cid=c.id, action='retry') }}"><button>Check again</button></form>
+      <form method="post" action="{{ url_for('ipcams_action', cid=c.id, action='remove') }}"
+            onsubmit="return confirm('Remove {{ c.name }}?\nBAN stops watching it. Clips already saved stay.')"><button class="danger">Remove</button></form>
+    </div>
+  </div>
+  {% if not c.unavailable %}
+  <p class="state"><b>Connected.</b> {{ c.model }} · motion from {{ c.detail.motion_source or '…' }}{% if c.last_motion %} · last motion {{ (c.last_motion * 1000)|ago }}{% endif %}</p>
+  {% elif c.detail.checking %}
+  <p class="state"><b>Looking for the camera's video…</b> This page updates on its own.</p>
+  {% else %}
+  <div class="flash error" style="margin-top:10px">{{ c.detail.error or 'Not connected.' }}</div>
+  {% endif %}
+  <details>
+    <summary class="muted">Details and settings</summary>
+    <dl>
+      <dt>Address</dt><dd>{{ c.detail.host }}{% if c.detail.channel and c.detail.channel > 1 %}, channel {{ c.detail.channel }}{% endif %}</dd>
+      <dt>Type</dt><dd>{{ {'hikvision': 'Hikvision-type (ISAPI)', 'dahua': 'Dahua-type', 'onvif': 'ONVIF', 'rtsp': 'RTSP only'}.get(c.detail.kind, 'not found yet') }}</dd>
+      {% if c.detail.video %}<dt>Video</dt><dd>{{ c.detail.video }}</dd>{% endif %}
+      {% if c.detail.stream %}<dt>Stream</dt><dd>{{ c.detail.stream }}</dd>{% endif %}
+      {% if c.detail.small %}<dt>Small stream</dt><dd>{{ c.detail.small }}</dd>{% endif %}
+      {% if c.detail.serial %}<dt>Serial</dt><dd>{{ c.detail.serial }}</dd>{% endif %}
+      {% if c.detail.firmware %}<dt>Firmware</dt><dd>{{ c.detail.firmware }}</dd>{% endif %}
+      {% if c.last_error %}<dt>Last clip</dt><dd>{{ c.last_error }}</dd>{% endif %}
+    </dl>
+    {% set s = saved.get(c.id) %}
+    {% if s %}
+    <form method="post" action="{{ url_for('ipcams_add') }}" style="margin-top:10px">
+      {{ fields(s) }}
+      <div class="actions"><button class="primary">Save changes</button></div>
+    </form>
+    {% endif %}
+  </details>
+</section>
+{% endfor %}
+</div>
+
+
+<section class="panel">
+  <h2>Add a Laview or other IP camera</h2>
+  <p>Cameras that send video on the home network (RTSP), like Laview's IP cameras and recorders (NVR/DVR), and most
+     ONVIF cameras. Their motion pops up on GarysTV (tick them in Settings › Arlo), goes to the phone app and the alerts,
+     and records a clip, the same as Arlo. Live view works too.
+     Use the camera's own name and password (often <b>admin</b> and the one set when it was activated), not the Laview app login.</p>
+  <div class="actions" style="margin:8px 0 12px"><button type="button" id="find">Find cameras on this network</button></div>
+  <div id="found"></div>
+  <form method="post" action="{{ url_for('ipcams_add') }}" id="addform">
+    {{ fields({}) }}
+    <div class="actions"><button class="primary">Add camera</button></div>
+  </form>
+  <details class="muted" style="margin-top:12px">
+    <summary>Tips for Laview cameras</summary>
+    <ul>
+      <li>Give the camera a fixed address in the router (DHCP reservation) so it keeps the same one.</li>
+      <li>A camera that's never been set up must be <b>activated</b> first (Laview ONE app, or Laview's SADP / iVMS tool) to set its password.</li>
+      <li>In the camera's web page (type its address in a browser): turn on <b>RTSP</b> (Network › Advanced › Integration protocol)
+          and, for camera motion events, <b>ONVIF</b> with a user. Motion detection must be turned on in the camera for its events.</li>
+      <li>A recorder (NVR/DVR): enter its address and how many channels to add. Each channel becomes a camera.</li>
+      <li>Cloud-only Laview models (Wi-Fi cameras that only work in the app, with no RTSP/ONVIF) can't be added.</li>
+    </ul>
+  </details>
+</section>
+{% endblock %}
+{% block script %}
+<script>
+(function () {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+  document.getElementById("find").onclick = async (e) => {
+    const box = document.getElementById("found");
+    e.target.disabled = true; box.innerHTML = '<p class="muted">Looking for 3 seconds…</p>';
+    try {
+      const l = await (await fetch("{{ url_for('ipcams_find') }}", { method: "POST" })).json();
+      box.innerHTML = l.length ? l.map((d) => `<div class="row"><b style="min-width:120px">${esc(d.host)}</b>
+        <span class="muted" style="flex:1">${esc([d.maker, d.model].filter(Boolean).join(" ") || "camera")} · ${esc(d.via.join(", "))}${d.note ? " · " + esc(d.note) : ""}</span>
+        ${d.added ? '<span class="muted">added</span>' : `<button type="button" data-host="${esc(d.host)}" data-port="${esc(d.http_port || "")}" data-onvif="${esc(d.onvif_port || "")}" data-name="${esc(d.model || "")}">Use</button>`}</div>`).join("")
+        : '<p class="muted">No camera answered. It may not support discovery: type its address below.</p>';
+      box.querySelectorAll("[data-host]").forEach((b) => b.onclick = () => {
+        const f = document.getElementById("addform");
+        f.host.value = b.dataset.host; if (b.dataset.port) f.http_port.value = b.dataset.port;
+        if (b.dataset.onvif) f.onvif_port.value = b.dataset.onvif; if (!f.name.value) f.name.value = b.dataset.name;
+        f.password.focus();
+      });
+    } catch (err) { box.innerHTML = '<p class="muted">Couldn\'t look: ' + esc(err) + '</p>'; }
+    e.target.disabled = false;
+  };
+  // Reload when a camera's state changes (found its video, went offline), unless typing.
+  let last = null;
+  setInterval(async () => {
+    try {
+      const s = await (await fetch("{{ url_for('ipcams_state') }}", { cache: "no-store" })).json();
+      const key = JSON.stringify(s.map((c) => [c.id, c.unavailable, c.detail.checking, c.detail.error, c.detail.motion_source]));
+      const typing = document.activeElement && document.activeElement.matches("input, select") && document.activeElement.value;
+      const open = document.querySelector("details[open] form");
+      if (last !== null && key !== last && !typing && !open) location.reload();
+      last = key;
+    } catch (e) {}
+  }, 3000);
+})();
+</script>
+{% endblock %}
