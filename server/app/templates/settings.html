@@ -6,6 +6,11 @@
   <h2>📱 This phone</h2>
   <p>The BAN app shows a notification the moment a camera sees motion, then adds the picture once the clip is saved. Tap it to watch. Works on the home Wi-Fi, or away from home over TapperVPN.</p>
   <label class="check"><input type="checkbox" id="ph-on"> Notify me on this phone when a camera sees motion</label>
+  <div id="ph-cams" hidden style="margin:6px 0 4px">
+    <label class="check"><input type="radio" name="ph-which" id="ph-all"> All cameras</label>
+    <label class="check"><input type="radio" name="ph-which" id="ph-some"> Only the cameras I pick</label>
+    <div id="ph-list" style="margin:2px 0 0 26px"></div>
+  </div>
   <div class="muted" id="ph-state" style="margin:4px 0 10px"></div>
   <div class="actions" style="margin-top:4px">
     <button type="button" id="ph-test">Send a test notification</button>
@@ -131,7 +136,31 @@
       " · Server " + A.server() + " · App " + A.version() + (A.updateState && A.updateState() ? " · " + A.updateState() : "") +
       (batt ? "" : " · Android may pause BAN to save battery");
   }
-  $("#ph-on").onchange = () => { A.setNotifications($("#ph-on").checked); setTimeout(show, 800); };
+  $("#ph-on").onchange = () => { A.setNotifications($("#ph-on").checked); setTimeout(show, 800); cams(); };
+
+  // Which cameras notify on this phone: all of them unless some are picked (older apps: always all).
+  let camList = [];
+  function cams() {
+    const box = $("#ph-cams");
+    box.hidden = !A.cameraChoice || !A.notificationsEnabled();
+    if (box.hidden) return;
+    let c = { all: true, cams: [] };
+    try { c = JSON.parse(A.cameraChoice()); } catch (e) {}
+    $("#ph-all").checked = c.all; $("#ph-some").checked = !c.all;
+    const several = new Set(camList.map((x) => x.account || "")).size > 1;
+    $("#ph-list").hidden = c.all;
+    $("#ph-list").innerHTML = camList.map((x) => `<label class="check"><input type="checkbox" data-cam="${esc(x.id)}" ${c.cams.includes(x.id) ? "checked" : ""}> ${esc(x.name)}${several && x.account ? ` <span class="muted">· ${esc(x.account)}</span>` : ""}</label>`).join("")
+      || '<div class="muted">No cameras yet.</div>';
+    document.querySelectorAll("#ph-list [data-cam]").forEach((el) => { el.onchange = save; });
+  }
+  function save() {
+    const picked = [...document.querySelectorAll("#ph-list [data-cam]")].filter((el) => el.checked).map((el) => el.dataset.cam);
+    A.setCameraChoice($("#ph-all").checked, JSON.stringify(picked));
+    cams();
+  }
+  $("#ph-all").onchange = save; $("#ph-some").onchange = save;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]); }
+  fetch("/cameras.json").then((r) => r.json()).then((l) => { camList = (l || []).map((x) => ({ id: String(x.id), name: x.name, account: x.account })); cams(); }).catch(cams);
   $("#ph-batt").onclick = () => A.fixBattery();
   $("#ph-server").onclick = () => A.changeServer();
   if (A.checkUpdate) {
