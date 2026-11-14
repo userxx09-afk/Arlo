@@ -108,6 +108,7 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - uses: actions/upload-artifact@v4
+        continue-on-error: true   # the release below is what counts; Actions storage can be full
         with:
           name: ArloKeeper-Setup
           path: dist/ArloKeeper-Setup.exe
