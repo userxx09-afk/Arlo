@@ -7,7 +7,7 @@ USB drive in a Sync Module 2 (no plan needed). So when BCN hears about motion th
 
   1. the clip is downloaded and saved with the Arlo clips (Recordings, the GarysTV Arlo screen)
   2. GarysTV gets the same motion event as for an Arlo camera, pointing at that clip, so it pops
-     up in the corner of the TV (if the camera is ticked in GarysTV's Settings > Arlo)
+     up in the corner of the TV (if the camera is ticked in GarysTV's Settings > Cameras)
   3. the phone app and the alerts (texts, ntfy, ...) go out as for Arlo
 If the clip can't be downloaded, the pop-up shows the camera's motion picture instead.
 
