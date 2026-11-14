@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1424">
-<title>{% block title %}BAN · Barb's Arlo Notifications{% endblock %}</title>
+<title>{% block title %}BCN · Barb's Camera Notifications{% endblock %}</title>
 <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}">
-<link rel="apple-touch-icon" href="{{ url_for('static', filename='ban-192.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='bcn-192.png') }}">
 <link rel="manifest" href="{{ url_for('manifest') }}">
 <style>
-  /* Same family as GarysTV: deep navy, white type; BAN's accent is orange where GarysTV's is red. */
+  /* Same family as GarysTV: deep navy, white type; BCN's accent is orange where GarysTV's is red. */
   :root {
     --bg:#04070d; --bg2:#0a1424; --panel:#0e1a2e; --panel2:#13233d; --card:#0e1a2e;
     --line:#22385c; --ink:#eef3fb; --text:#eef3fb; --muted:#93a6c4; --dim:#5d7194;
@@ -110,9 +110,9 @@
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
 <header class="topbar">
-  <a class="brand" href="{{ url_for('index') }}" title="Barb's Arlo Notifications">
+  <a class="brand" href="{{ url_for('index') }}" title="Barb's Camera Notifications">
     <span class="badge"><img class="mark" src="{{ url_for('photo') }}" alt=""><span class="word">B<b>AN</b></span></span>
-    <span class="full">Barb's Arlo Notifications</span>
+    <span class="full">Barb's Camera Notifications</span>
   </a>
   {% block header %}{% endblock %}
   <span class="spacer"></span>

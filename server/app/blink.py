@@ -1,9 +1,9 @@
 """Blink cameras, alongside the Arlo ones: motion pop-ups on GarysTV, phone alerts, and the clip.
 
 Uses blinkpy (the library Home Assistant uses for Blink). Blink has no instant motion push like
-Arlo's: BAN asks Blink every BLINK_POLL_SECONDS (30 by default). Blink only reports motion once it
+Arlo's: BCN asks Blink every BLINK_POLL_SECONDS (30 by default). Blink only reports motion once it
 has saved a clip, either in its cloud (Blink plan, or an account from before April 2020) or on a
-USB drive in a Sync Module 2 (no plan needed). So when BAN hears about motion the clip is ready:
+USB drive in a Sync Module 2 (no plan needed). So when BCN hears about motion the clip is ready:
 
   1. the clip is downloaded and saved with the Arlo clips (Recordings, the GarysTV Arlo screen)
   2. GarysTV gets the same motion event as for an Arlo camera, pointing at that clip, so it pops
@@ -244,7 +244,7 @@ class Account:
                     if not addr or addr in self._seen:
                         continue
                     self._seen.add(addr)
-                    if first:                          # clips from before BAN started: just note them
+                    if first:                          # clips from before BCN started: just note them
                         continue
                     try:
                         await self._on_clip(cid, cam, rec)
@@ -361,7 +361,7 @@ class Hub:
 
     def add(self, username, password):
         if not AVAILABLE:
-            raise RuntimeError("This Arlo Keeper was installed without Blink support (blinkpy). Update it.")
+            raise RuntimeError("This Camera Keeper was installed without Blink support (blinkpy). Update it.")
         username = username.strip()
         with _lock:
             accs = accounts()

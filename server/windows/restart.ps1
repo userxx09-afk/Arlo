@@ -1,4 +1,4 @@
-# Start-menu "Restart Arlo Keeper". Asks Windows for admin rights, then stops and starts the task.
+# Start-menu "Restart Camera Keeper". Asks Windows for admin rights, then stops and starts the task.
 $me = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden `
@@ -6,4 +6,4 @@ if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     exit
 }
 & (Join-Path $PSScriptRoot 'stop.ps1')
-Start-ScheduledTask -TaskName 'Arlo Keeper'
+Start-ScheduledTask -TaskName 'Camera Keeper'

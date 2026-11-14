@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Sign in · BAN{% endblock %}
+{% block title %}Sign in · BCN{% endblock %}
 {% block style %}
   .tabbar, .topbar .nav { display:none !important; }
   .signin { max-width:400px; margin:40px auto; text-align:center; }
@@ -13,8 +13,8 @@
 {% endblock %}
 {% block body %}
 <div class="signin">
-  <img src="{{ url_for('static', filename='ban.svg') }}" alt="">
-  <h1>Barb's Arlo Notifications</h1>
+  <img src="{{ url_for('static', filename='bcn.svg') }}" alt="">
+  <h1>Barb's Camera Notifications</h1>
   {% if enabled %}
   <p>Sign in to see the cameras from away from home. This phone or browser stays signed in.</p>
   {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
@@ -25,7 +25,7 @@
     <button class="primary">Sign in</button>
   </form>
   {% else %}
-  <p>Away-from-home access isn't set up yet. At home, open BAN, go to <b>Alerts</b>, and set a name and password under “Away from home”.</p>
+  <p>Away-from-home access isn't set up yet. At home, open BCN, go to <b>Alerts</b>, and set a name and password under “Away from home”.</p>
   {% endif %}
 </div>
 {% endblock %}

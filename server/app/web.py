@@ -39,7 +39,7 @@ def _outside_needs_login():
     if remote.enabled() and session.get("remote") == remote.stamp():
         return None
     # Apps (GarysTV, ffmpeg) can't fill in the sign-in page: they send the name and password
-    # with every request instead (https://name:password@ban.tapper.co).
+    # with every request instead (https://name:password@bcn.tapper.co).
     auth = request.authorization
     if auth and auth.type == "basic" and remote.enabled():
         ip = remote.client_ip(request)
@@ -47,7 +47,7 @@ def _outside_needs_login():
             return None
         return Response("Too many wrong tries. Wait 15 minutes and try again." if remote.locked(ip)
                         else "That name and password don't match the away-from-home sign-in.", 401)
-    wants_page = request.method == "GET" and not request.path.startswith(("/api/", "/media/", "/live/", "/ban.apk", "/photo", "/cameras.json", "/health"))
+    wants_page = request.method == "GET" and not request.path.startswith(("/api/", "/media/", "/live/", "/bcn.apk", "/ban.apk", "/photo", "/cameras.json", "/health"))
     if wants_page:
         return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
     return Response("Sign in first", 401)
@@ -86,7 +86,7 @@ def _auth(fn):
         if config.WEB_USER:
             auth = request.authorization
             if not auth or auth.username != config.WEB_USER or auth.password != config.WEB_PASSWORD:
-                return Response("Login required", 401, {"WWW-Authenticate": 'Basic realm="Arlo Keeper"'})
+                return Response("Login required", 401, {"WWW-Authenticate": 'Basic realm="Camera Keeper"'})
         return fn(*a, **kw)
     return wrapper
 
@@ -119,9 +119,9 @@ def _size(b):
 @app.route("/")
 @_auth
 def index():
-    """BAN: cameras and recordings. The page fills itself in from the /api/ calls below."""
+    """BCN: cameras and recordings. The page fills itself in from the /api/ calls below."""
     return render_template("index.html", status=recorder.status if recorder else {},
-                           in_app="BAN-Android" in (request.headers.get("User-Agent") or ""))
+                           in_app=any(a in (request.headers.get("User-Agent") or "") for a in ("BCN-Android", "BAN-Android")))
 
 
 @app.post("/camera/<cam_id>/record")
@@ -188,8 +188,8 @@ def _subscriber_url():
 @_auth
 def api_subscribe():
     if remote.is_remote(request) and not (request.get_json(silent=True) or {}).get("url"):
-        return jsonify({"ok": False, "error": "Connected through ban.tapper.co, which works for clips, but motion pop-ups "
-                        "can't come back that way. For pop-ups use Arlo Keeper's home or VPN address (like http://100.64.0.2:8090)."}), 400
+        return jsonify({"ok": False, "error": "Connected through bcn.tapper.co, which works for clips, but motion pop-ups "
+                        "can't come back that way. For pop-ups use Camera Keeper's home or VPN address (like http://100.64.0.2:8090)."}), 400
     url = _subscriber_url()
     garystv.subscribe(url)
     return jsonify({"ok": True, "url": url})
@@ -371,7 +371,7 @@ def ipcams_add():
     except ValueError as e:
         flash(str(e), "error")
         return redirect(url_for("ipcams_page"))
-    flash(f"Added {len(ids)} camera{'' if len(ids) == 1 else 's'}. BAN is looking for the video now; "
+    flash(f"Added {len(ids)} camera{'' if len(ids) == 1 else 's'}. BCN is looking for the video now; "
           "this page updates on its own (finding an unknown camera can take a minute).", "ok")
     return redirect(url_for("ipcams_page"))
 
@@ -566,7 +566,7 @@ def sync():
 @app.get("/api/clips")
 @_auth
 def api_clips():
-    """Saved clips, newest first. GarysTV uses camera and limit; BAN also pages with offset."""
+    """Saved clips, newest first. GarysTV uses camera and limit; BCN also pages with offset."""
     a = request.args
     try:
         limit = min(max(int(a.get("limit", 100)), 1), 500)
@@ -580,9 +580,9 @@ def api_clips():
                                limit=limit, offset=offset, camera_ids=cams))
 
 
-# --- BAN (the web page and the phone app) -------------------------------------
+# --- BCN (the web page and the phone app) -------------------------------------
 def _cams_full():
-    """Cameras with everything the BAN page shows on each card."""
+    """Cameras with everything the BCN page shows on each card."""
     cams = recorder.cameras_view() if recorder else []
     last = {}
     for c in cams:
@@ -733,7 +733,14 @@ def _photo_path():
 
 
 def _apk_path():
-    return os.path.join(config.DATA_DIR, "ban.apk")
+    path = os.path.join(config.DATA_DIR, "bcn.apk")
+    old = os.path.join(config.DATA_DIR, "ban.apk")     # the name it had before the rename to BCN
+    if not os.path.exists(path) and os.path.exists(old):
+        try:
+            os.replace(old, path)
+        except OSError:
+            return old
+    return path
 
 
 @app.get("/photo")
@@ -743,7 +750,7 @@ def photo():
         r = send_from_directory(config.DATA_DIR, "photo.jpg", conditional=True)
         r.headers["Cache-Control"] = "no-cache"
         return r
-    default = "photo-default.jpg" if os.path.exists(os.path.join(app.static_folder, "photo-default.jpg")) else "ban.svg"
+    default = "photo-default.jpg" if os.path.exists(os.path.join(app.static_folder, "photo-default.jpg")) else "bcn.svg"
     return redirect(url_for("static", filename=default))
 
 
@@ -781,21 +788,26 @@ def api_photo_delete():
     return jsonify({"ok": True})
 
 
-@app.get("/ban.apk")
+@app.get("/bcn.apk")
+@app.get("/ban.apk")            # the old name, for links saved before the rename
 @_auth
 def apk():
-    if not os.path.exists(_apk_path()):
+    path = _apk_path()
+    if not os.path.exists(path):
         abort(404)
-    return send_from_directory(config.DATA_DIR, "ban.apk", as_attachment=True,
-                               mimetype="application/vnd.android.package-archive")
+    return send_from_directory(config.DATA_DIR, os.path.basename(path), as_attachment=True,
+                               download_name="BCN.apk", mimetype="application/vnd.android.package-archive")
 
 
 @app.get("/manifest.webmanifest")
 def manifest():
-    return jsonify({"name": "BAN - Barb's Arlo Notifications", "short_name": "BAN", "start_url": "/",
+    return jsonify({"name": "BCN - Barb's Camera Notifications", "short_name": "BCN", "start_url": "/",
+                    # Phone apps from before the rename look for "Arlo Notifications" here to know
+                    # they've found the server, so the old name stays in the description.
+                    "description": "Barb's Camera Notifications (formerly Barb's Arlo Notifications)",
                     "display": "standalone", "background_color": "#04070d", "theme_color": "#0a1424",
-                    "icons": [{"src": url_for("static", filename="ban-192.png"), "sizes": "192x192", "type": "image/png"},
-                              {"src": url_for("static", filename="ban-512.png"), "sizes": "512x512", "type": "image/png"}]})
+                    "icons": [{"src": url_for("static", filename="bcn-192.png"), "sizes": "192x192", "type": "image/png"},
+                              {"src": url_for("static", filename="bcn-512.png"), "sizes": "512x512", "type": "image/png"}]})
 
 
 @app.get("/health")
@@ -804,13 +816,13 @@ def health():
     return jsonify({"ok": bool(s.get("connected")), **{k: v for k, v in s.items() if k != "cameras"}})
 
 
-# --- moving to another server (export / import / ban.tapper.co) -----------------------
+# --- moving to another server (export / import / bcn.tapper.co) -----------------------
 def _home_only(fn):
     """Exports hold every password; imports replace everything. Only from the home network."""
     @functools.wraps(fn)
     def wrapper(*a, **kw):
         if remote.is_remote(request):
-            return Response("Moving Arlo Keeper only works from the home network.", 403)
+            return Response("Moving Camera Keeper only works from the home network.", 403)
         return fn(*a, **kw)
     return wrapper
 
@@ -839,7 +851,7 @@ def move_export():
     from . import migrate
     clips = request.args.get("clips", "1") != "0"
     import platform
-    name = f"ban-export-{platform.node() or 'server'}-{time.strftime('%Y%m%d-%H%M')}{'' if clips else '-no-clips'}.zip"
+    name = f"bcn-export-{platform.node() or 'server'}-{time.strftime('%Y%m%d-%H%M')}{'' if clips else '-no-clips'}.zip"
     return Response(migrate.stream_export(include_clips=clips), mimetype="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store",
                              "X-Accel-Buffering": "no"})
@@ -917,6 +929,6 @@ def move_retire():
     else:
         store.set_setting("moved_away", {"at": time.strftime("%Y-%m-%d %H:%M"),
                                          "to": request.form.get("to", "").strip()[:80]})
-        flash("Recording is off here. Arlo Keeper restarts in a moment without signing in to Arlo.", "ok")
+        flash("Recording is off here. Camera Keeper restarts in a moment without signing in to Arlo.", "ok")
     migrate.restart_soon()
     return redirect(url_for("move"))

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Move to another server · BAN{% endblock %}
+{% block title %}Move to another server · BCN{% endblock %}
 {% block header %}<div class="meta"><span>Move to another server</span></div>{% endblock %}
 {% block style %}
   ol.steps { margin:0 0 12px 18px; padding:0; color:var(--muted); font-size:14px; }
@@ -10,7 +10,7 @@
 {% endblock %}
 {% block body %}
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
-{% if results %}<div class="flash ok"><b>ban.tapper.co</b><ul style="margin:6px 0 0 18px;padding:0">{% for r in results %}<li>{{ r }}</li>{% endfor %}</ul></div>{% endif %}
+{% if results %}<div class="flash ok"><b>bcn.tapper.co</b><ul style="margin:6px 0 0 18px;padding:0">{% for r in results %}<li>{{ r }}</li>{% endfor %}</ul></div>{% endif %}
 
 {% if moved %}
 <section class="panel">
@@ -25,11 +25,11 @@
 <section class="panel">
   <h2>How moving works</h2>
   <ol class="steps">
-    <li>On the <b>new</b> server: install Arlo Keeper (Windows: <a href="https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe">ArloKeeper-Setup.exe</a>). Don't sign in to Arlo there.</li>
+    <li>On the <b>new</b> server: install Camera Keeper (Windows: <a href="https://github.com/userxx09-afk/prod/releases/download/camera-keeper-windows/CameraKeeper-Setup.exe">CameraKeeper-Setup.exe</a>). Don't sign in to Arlo there.</li>
     <li>On the <b>old</b> server: <b>Download export</b> below.</li>
     <li>On the <b>old</b> server: <b>Turn off recording here</b> (Arlo only allows one server per login).</li>
     <li>On the <b>new</b> server (open <code>http://localhost:{{ port }}/move</code> there): <b>Import</b> the file. Arlo accounts, phone numbers, alert settings, the away-from-home password, Barb's photo and the clips all come along.</li>
-    <li>On the <b>new</b> server: <b>Point ban.tapper.co here</b>. Phones away from home follow automatically; on the home Wi-Fi the app finds the new server by itself.</li>
+    <li>On the <b>new</b> server: <b>Point bcn.tapper.co here</b>. Phones away from home follow automatically; on the home Wi-Fi the app finds the new server by itself.</li>
     <li>Delete the export file: it holds the Arlo and Twilio passwords.</li>
   </ol>
   <p class="muted">This server: <b>{{ this_host }}</b> · {{ info.clips }} clips ({{ (info.clip_bytes / 1e9)|round(2) }} GB)</p>
@@ -57,7 +57,7 @@
 
 <section class="panel">
   <h2>3 · Import into this server</h2>
-  <p>Replaces this server's settings and Arlo sign-ins with the export's and adds its clips (clips already here are kept). Arlo Keeper restarts to do it. The current database is kept as a backup in the data folder.</p>
+  <p>Replaces this server's settings and Arlo sign-ins with the export's and adds its clips (clips already here are kept). Camera Keeper restarts to do it. The current database is kept as a backup in the data folder.</p>
   {% if last %}
     {% if last.ok %}<p class="ok">✅ Imported from {{ last.from }} (export made {{ last.made }}) on {{ last.finished }}: {{ last.clips_added }} clips added{% if last.clips_kept %}, {{ last.clips_kept }} already here{% endif %}{% if last.settings_changed %}; settings brought over: {{ last.settings_changed|join(', ') }}{% endif %}.</p>
     {% else %}<p class="bad">⚠️ The last import failed: {{ last.error }}</p>{% endif %}
@@ -71,7 +71,7 @@
 </section>
 
 <section class="panel" id="tunnel">
-  <h2>4 · Point ban.tapper.co here</h2>
+  <h2>4 · Point bcn.tapper.co here</h2>
   {% if tunnel.hostname %}<p class="muted" style="margin-top:-6px">✅ {{ tunnel.hostname }} was pointed here on {{ tunnel.set_up }}{% if tunnel.tunnel_name %} (tunnel “{{ tunnel.tunnel_name }}”){% endif %}.{% if svc %} cloudflared is {{ svc }}.{% endif %}</p>{% endif %}
   <p>Makes a Cloudflare tunnel for this server, moves the <b>{{ hostname }}</b> DNS record to it and takes the name off the old server's tunnel (its other names, like trains.tapper.co, stay put). {% if windows %}cloudflared is installed as a Windows service.{% else %}On Linux it shows the one command to run.{% endif %}</p>
   <p class="muted">Make the API token at dash.cloudflare.com → My Profile → API Tokens → Create Token → Custom, with <b>Account · Cloudflare Tunnel · Edit</b> and <b>Zone · DNS · Edit</b> (zone tapper.co). It's used once and not saved.</p>
@@ -94,7 +94,7 @@
   $("#imp-go").onclick = () => {
     const f = $("#imp-file").files[0];
     if (!f) { state("Choose the export .zip first."); return; }
-    if (!confirm("Import " + f.name + "?\nThis server's settings and Arlo sign-ins are replaced by the export's, then Arlo Keeper restarts.")) return;
+    if (!confirm("Import " + f.name + "?\nThis server's settings and Arlo sign-ins are replaced by the export's, then Camera Keeper restarts.")) return;
     const x = new XMLHttpRequest(), bar = $("#imp-bar");
     bar.hidden = false; $("#imp-go").disabled = true;
     x.open("POST", "/api/move/import");
@@ -106,7 +106,7 @@
       state("Uploaded (" + (r.clips || 0) + " clips, from " + r.from + "). Restarting and importing… this page reloads when it's done.");
       waitForRestart();
     };
-    x.onerror = () => { $("#imp-go").disabled = false; state("Upload failed. Is Arlo Keeper still running?"); };
+    x.onerror = () => { $("#imp-go").disabled = false; state("Upload failed. Is Camera Keeper still running?"); };
     x.send(f);
   };
   function waitForRestart() {

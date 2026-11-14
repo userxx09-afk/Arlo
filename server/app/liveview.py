@@ -1,4 +1,4 @@
-"""Watch a camera live, on demand, from the BAN web page or phone app.
+"""Watch a camera live, on demand, from the BCN web page or phone app.
 
 One live session per camera, shared by everyone watching it: it opens the camera's Arlo
 live view, and ffmpeg turns it into JPEG pictures (about 8 a second). Each viewer gets them as

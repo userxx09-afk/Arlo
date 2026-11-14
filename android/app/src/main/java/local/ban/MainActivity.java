@@ -32,7 +32,7 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 /**
- * BAN on a phone: the Arlo Keeper web page (which lays itself out for phones), plus motion
+ * BCN on a phone: the Camera Keeper web page (which lays itself out for phones), plus motion
  * notifications from MotionService. The page talks to the app through window.BANApp.
  */
 public class MainActivity extends Activity {
@@ -70,7 +70,7 @@ public class MainActivity extends Activity {
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
         ws.setMediaPlaybackRequiresUserGesture(false);
-        ws.setUserAgentString(ws.getUserAgentString() + " BAN-Android/" + version());
+        ws.setUserAgentString(ws.getUserAgentString() + " BCN-Android/" + version());
         CookieManager.getInstance().setAcceptCookie(true);
         web.addJavascriptInterface(new Bridge(), "BANApp");
         web.setWebViewClient(new Client());
@@ -84,10 +84,10 @@ public class MainActivity extends Activity {
         find(getIntent());
     }
 
-    /** Look for BAN (home first, then ban.tapper.co), then open it; ask for an address if neither answers. */
+    /** Look for BCN (home first, then bcn.tapper.co), then open it; ask for an address if neither answers. */
     private void find(Intent intent) {
         offline = true;
-        web.loadDataWithBaseURL(null, page("<div class=spin></div><h2>Finding BAN…</h2><p>Looking on the home Wi-Fi, then at "
+        web.loadDataWithBaseURL(null, page("<div class=spin></div><h2>Finding BCN…</h2><p>Looking on the home Wi-Fi, then at "
                 + Prefs.REMOTE_SERVER.replace("https://", "") + ".</p>"), "text/html", "utf-8", null);
         String path = intent == null ? null : intent.getStringExtra("path");
         if (intent != null) intent.removeExtra("path");
@@ -173,10 +173,10 @@ public class MainActivity extends Activity {
         pad.setPadding(22 * dp, 8 * dp, 22 * dp, 0);
         pad.addView(box);
         AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle(first ? "Couldn't find BAN" : "Server address")
+                .setTitle(first ? "Couldn't find BCN" : "Server address")
                 .setMessage(first
-                        ? "BAN didn't answer on the home Wi-Fi or at " + Prefs.REMOTE_SERVER + ". Check the phone's connection, or type BAN's address."
-                        : "BAN finds itself: home Wi-Fi first, then " + Prefs.REMOTE_SERVER + ". Type an address only if it lives somewhere else.")
+                        ? "BCN didn't answer on the home Wi-Fi or at " + Prefs.REMOTE_SERVER + ". Check the phone's connection, or type BCN's address."
+                        : "BCN finds itself: home Wi-Fi first, then " + Prefs.REMOTE_SERVER + ". Type an address only if it lives somewhere else.")
                 .setView(pad)
                 .setCancelable(!first)
                 .setPositiveButton("Connect", (d, w) -> {
@@ -231,7 +231,7 @@ public class MainActivity extends Activity {
 
     private void showOffline(String why) {
         offline = true;
-        web.loadDataWithBaseURL(null, page("<div style='font-size:54px'>🔔</div><h2>Can't reach BAN</h2>"
+        web.loadDataWithBaseURL(null, page("<div style='font-size:54px'>🔔</div><h2>Can't reach BCN</h2>"
                 + "<p>" + escape(Prefs.bare(server())) + " isn't answering.<br>Check the phone's internet connection.</p>"
                 + "<p style='font-size:12px'>" + escape(why) + "</p>"
                 + "<a href='#' onclick='BANApp.retry();return false'>Try again</a>"
@@ -300,7 +300,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface public String connectionState() {
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-                return "Android is blocking BAN's notifications. Allow them in Settings > Apps > BAN > Notifications.";
+                return "Android is blocking BCN's notifications. Allow them in Settings > Apps > BCN > Notifications.";
             return MotionService.state;
         }
 

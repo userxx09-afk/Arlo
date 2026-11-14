@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Arlo accounts · BAN{% endblock %}
+{% block title %}Arlo accounts · BCN{% endblock %}
 {% block header %}<div class="meta"><span>Arlo accounts</span></div>{% endblock %}
 {% block style %}
   .acct .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -99,7 +99,7 @@
 <section class="panel">
   <h2>{{ 'Add another Blink account' if blink_accounts else 'Add Blink cameras' }}</h2>
   {% if not blink_available %}
-  <div class="flash error">This copy of Arlo Keeper doesn't have Blink support yet. Install the newest version.</div>
+  <div class="flash error">This copy of Camera Keeper doesn't have Blink support yet. Install the newest version.</div>
   {% else %}
   <p>Blink cameras pop up on GarysTV and send the same alerts as Arlo ones. Blink only reports motion once it has saved a clip:
      in Blink's cloud (Blink plan), or on a USB drive in a <b>Sync Module 2</b> (no plan needed). The Blink system must be <b>armed</b>.

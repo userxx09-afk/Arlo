@@ -5,11 +5,13 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.util.Base64;
 
-/** The few things BAN remembers: where Arlo Keeper is, and whether to notify. */
+/** The few things BCN remembers: where Camera Keeper is, and whether to notify. */
 final class Prefs {
-    static final String REMOTE_SERVER = "https://ban.tapper.co";
+    static final String REMOTE_SERVER = "https://bcn.tapper.co";
+    /** The away-from-home name from before the rename to BCN, tried if the new one doesn't answer. */
+    static final String OLD_REMOTE_SERVER = "https://ban.tapper.co";
     static final String DEFAULT_SERVER = REMOTE_SERVER;
-    /** Arlo Keeper on the home network, for when Cloudflare can't be reached. */
+    /** Camera Keeper on the home network, for when Cloudflare can't be reached. */
     static final String HOME_SERVER = "http://10.0.0.156:8090";
 
     private Prefs() {}
@@ -26,7 +28,7 @@ final class Prefs {
         p(c).edit().putString("server", clean(url)).apply();
     }
 
-    /** The last address BAN answered on at home. */
+    /** The last address BCN answered on at home. */
     static String localServer(Context c) {
         return p(c).getString("local_server", null);
     }
@@ -35,7 +37,7 @@ final class Prefs {
         p(c).edit().putString("local_server", url).apply();
     }
 
-    /** An address typed in by hand (tried after home and ban.tapper.co). */
+    /** An address typed in by hand (tried after home and bcn.tapper.co). */
     static String manualServer(Context c) {
         return p(c).getString("manual_server", null);
     }

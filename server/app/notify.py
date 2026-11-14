@@ -179,5 +179,5 @@ def send_test():
     s = current()
     if not has_any_channel(s) and not active_numbers(s):
         return [("setup", False, "Add a phone number or another channel first")]
-    return _deliver(s, "Arlo Keeper test", "Alerts are working.", link=s["public_url"] or None,
+    return _deliver(s, "Camera Keeper test", "Alerts are working.", link=s["public_url"] or None,
                     extra={"event": "test"})

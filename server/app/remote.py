@@ -83,7 +83,7 @@ def check(ip, user, password):
 
 def check_basic(ip, user, password):
     """HTTP Basic sign-in: an app with the name and password in the address, like GarysTV's
-    https://name:password@ban.tapper.co. Same name, password and lockout as the sign-in page.
+    https://name:password@bcn.tapper.co. Same name, password and lockout as the sign-in page.
     A right answer is remembered for a few minutes, since apps send it with every request."""
     key = hashlib.sha256(f"{(user or '').strip().lower()}\0{password or ''}\0{stamp()}".encode()).hexdigest()
     now = time.time()

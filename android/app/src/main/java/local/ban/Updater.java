@@ -23,14 +23,14 @@ import java.net.URL;
 import java.security.MessageDigest;
 
 /**
- * Updates from GitHub. latest.json in the public prod repo (arlo/, copied there from this
- * repo's downloads/ by the "Publish BAN release" workflow) says which version is newest and where
- * its APK is; if it's newer than this one, BAN downloads it, checks its SHA-256, and hands it to
+ * Updates from GitHub. latest.json in the public prod repo (bcn/, copied there from this
+ * repo's downloads/ by the "Publish BCN release" workflow) says which version is newest and where
+ * its APK is; if it's newer than this one, BCN downloads it, checks its SHA-256, and hands it to
  * Android's installer, which asks you to confirm. Updates install over the old app because every
  * version is signed with the same key.
  */
 final class Updater {
-    static final String LATEST = "https://raw.githubusercontent.com/userxx09-afk/prod/main/arlo/latest.json";
+    static final String LATEST = "https://raw.githubusercontent.com/userxx09-afk/prod/main/bcn/latest.json";
     static volatile String state = "";
 
     private Updater() {}
@@ -55,14 +55,14 @@ final class Updater {
                 String name = j.optString("versionName", "?");
                 if (code <= myCode(a)) {
                     state = "Up to date (checked " + android.text.format.DateFormat.getTimeFormat(a).format(new java.util.Date()) + ")";
-                    if (!quiet) a.runOnUiThread(() -> Toast.makeText(a, "BAN is up to date.", Toast.LENGTH_SHORT).show());
+                    if (!quiet) a.runOnUiThread(() -> Toast.makeText(a, "BCN is up to date.", Toast.LENGTH_SHORT).show());
                     return;
                 }
-                state = "BAN " + name + " is available.";
+                state = "BCN " + name + " is available.";
                 a.runOnUiThread(() -> {
                     if (a.isFinishing()) return;
                     new AlertDialog.Builder(a)
-                            .setTitle("BAN " + name + " is available")
+                            .setTitle("BCN " + name + " is available")
                             .setMessage((j.optString("notes", "").isEmpty() ? "" : j.optString("notes") + "\n\n") + "Download and install it now?")
                             .setPositiveButton("Update", (d, w) -> install(a, j))
                             .setNegativeButton("Later", null)
@@ -83,8 +83,8 @@ final class Updater {
     private static void install(Activity a, JSONObject j) {
         if (Build.VERSION.SDK_INT >= 26 && !a.getPackageManager().canRequestPackageInstalls()) {
             new AlertDialog.Builder(a)
-                    .setTitle("Allow BAN to update itself")
-                    .setMessage("Android needs your OK for BAN to install its updates. Turn on \"Allow from this source\" on the next screen, come back, and tap Update again.")
+                    .setTitle("Allow BCN to update itself")
+                    .setMessage("Android needs your OK for BCN to install its updates. Turn on \"Allow from this source\" on the next screen, come back, and tap Update again.")
                     .setPositiveButton("Open settings", (d, w) -> a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                             Uri.parse("package:" + a.getPackageName()))))
                     .setNegativeButton("Cancel", null)
@@ -103,7 +103,7 @@ final class Updater {
                 params.setAppPackageName(a.getPackageName());
                 int id = pi.createSession(params);
                 try (PackageInstaller.Session s = pi.openSession(id)) {
-                    try (OutputStream out = s.openWrite("ban.apk", 0, apk.length)) {
+                    try (OutputStream out = s.openWrite("bcn.apk", 0, apk.length)) {
                         out.write(apk);
                         s.fsync(out);
                     }

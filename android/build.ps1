@@ -1,4 +1,4 @@
-# Builds the BAN Android app (signed release) and puts it on tapper, where the Alerts page offers it.
+# Builds the BCN Android app (signed release) and puts it on tapper, where the Alerts page offers it.
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $here
@@ -14,7 +14,7 @@ if (-not (Test-Path gradlew.bat)) {
   Copy-Item "$g\gradle\wrapper\*" gradle\wrapper\
 }
 
-# BAN's own signing key, made once. Keep it: updates only install over an app with the same key.
+# The signing key, made once (its folder keeps the old BAN name on purpose). Keep it: updates only install over an app with the same key.
 $keyDir = "C:\Users\x\Projects\BAN-signing-key"
 $ks = "$keyDir\ban.keystore"
 if (-not (Test-Path $ks)) {
@@ -37,9 +37,9 @@ cmd /c ".\gradlew.bat --no-daemon -q assembleRelease -PbanVersionCode=$code -Pba
 if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
 New-Item -ItemType Directory -Force build | Out-Null
-Copy-Item app\build\outputs\apk\release\app-release.apk build\BAN.apk -Force
-Write-Host "Built $here\build\BAN.apk ($([math]::Round((Get-Item build\BAN.apk).Length/1KB)) KB)"
+Copy-Item app\build\outputs\apk\release\app-release.apk build\BCN.apk -Force
+Write-Host "Built $here\build\BCN.apk ($([math]::Round((Get-Item build\BCN.apk).Length/1KB)) KB)"
 
 $ErrorActionPreference = "Continue"
-scp build\BAN.apk tapper:/tmp/ban.apk
-ssh -o BatchMode=yes tapper "sudo install -o arlo-keeper -g arlo-keeper -m 644 /tmp/ban.apk /var/lib/arlo-keeper/ban.apk && rm /tmp/ban.apk && echo 'On tapper: http://10.0.0.156:8090/ban.apk'"
+scp build\BCN.apk tapper:/tmp/bcn.apk
+ssh -o BatchMode=yes tapper "sudo install -o camera-keeper -g camera-keeper -m 644 /tmp/bcn.apk /var/lib/camera-keeper/bcn.apk && rm /tmp/bcn.apk && echo 'On tapper: http://10.0.0.156:8090/bcn.apk'"

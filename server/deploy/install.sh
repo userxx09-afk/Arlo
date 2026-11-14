@@ -1,18 +1,41 @@
 #!/usr/bin/env bash
-# Install or update Arlo Keeper as a systemd service (Ubuntu).
+# Install or update Camera Keeper as a systemd service (Ubuntu).
 # Run from the unpacked project folder:  sudo bash deploy/install.sh
 set -euo pipefail
 
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
-APP=/opt/arlo-keeper
-DATA=/var/lib/arlo-keeper
-ETC=/etc/arlo-keeper
+APP=/opt/camera-keeper
+DATA=/var/lib/camera-keeper
+ETC=/etc/camera-keeper
 PORT="${PORT:-8090}"
 
 apt-get install -y -qq python3-venv ffmpeg git >/dev/null
 
-id arlo-keeper >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin arlo-keeper
-install -d -o arlo-keeper -g arlo-keeper -m 750 "$DATA"
+# Before the rename to Camera Keeper / BCN it was "arlo-keeper": move that install over once.
+# The clips, settings and Arlo/Blink sign-ins come along; the old code and venv are removed.
+if [ -f /etc/systemd/system/arlo-keeper.service ]; then
+  echo "Moving Arlo Keeper to its new name, Camera Keeper..."
+  systemctl stop arlo-keeper || true
+  systemctl disable arlo-keeper >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/arlo-keeper.service
+  systemctl daemon-reload
+fi
+if id arlo-keeper >/dev/null 2>&1 && ! id camera-keeper >/dev/null 2>&1; then
+  usermod -l camera-keeper -d "$DATA" arlo-keeper          # same user id, so file owners stay right
+  getent group arlo-keeper >/dev/null && groupmod -n camera-keeper arlo-keeper
+fi
+if [ -d /var/lib/arlo-keeper ] && [ ! -L /var/lib/arlo-keeper ] && [ ! -e "$DATA" ]; then
+  mv /var/lib/arlo-keeper "$DATA"
+fi
+if [ -d /etc/arlo-keeper ] && [ ! -e "$ETC" ]; then
+  mv /etc/arlo-keeper "$ETC"
+  [ -f "$ETC/arlo-keeper.env" ] && mv "$ETC/arlo-keeper.env" "$ETC/camera-keeper.env"
+  sed -i "s#/var/lib/arlo-keeper#$DATA#g" "$ETC/camera-keeper.env"
+fi
+rm -rf /opt/arlo-keeper
+
+id camera-keeper >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin camera-keeper
+install -d -o camera-keeper -g camera-keeper -m 750 "$DATA"
 install -d -m 755 "$APP" "$ETC"
 
 # Code (data and settings are never touched by updates)
@@ -25,8 +48,8 @@ find "$APP/app" -name __pycache__ -prune -exec rm -rf {} +
 "$APP/venv/bin/pip" install -q -r "$APP/requirements.txt"
 
 # Settings file: created once, then left alone
-if [ ! -f "$ETC/arlo-keeper.env" ]; then
-  cat > "$ETC/arlo-keeper.env" <<EOF
+if [ ! -f "$ETC/camera-keeper.env" ]; then
+  cat > "$ETC/camera-keeper.env" <<EOF
 # Arlo sign-in, phone numbers and alert accounts are set on the web page.
 DATA_DIR=$DATA
 WEB_PORT=$PORT
@@ -40,19 +63,19 @@ USE_BASE_STATION_STORAGE=true
 PUBLIC_URL=http://$(hostname -I | awk '{print $1}'):$PORT
 EOF
 fi
-chown root:arlo-keeper "$ETC/arlo-keeper.env"
-chmod 640 "$ETC/arlo-keeper.env"
+chown root:camera-keeper "$ETC/camera-keeper.env"
+chmod 640 "$ETC/camera-keeper.env"
 
-cp "$SRC/deploy/arlo-keeper.service" /etc/systemd/system/
+cp "$SRC/deploy/camera-keeper.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now arlo-keeper
-systemctl restart arlo-keeper
+systemctl enable --now camera-keeper
+systemctl restart camera-keeper
 
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   ufw allow "$PORT/tcp" >/dev/null
 fi
 
 sleep 3
-systemctl --no-pager --lines=5 status arlo-keeper || true
+systemctl --no-pager --lines=5 status camera-keeper || true
 echo
-echo "Arlo Keeper is running: http://$(hostname -I | awk '{print $1}'):$PORT"
+echo "Camera Keeper is running: http://$(hostname -I | awk '{print $1}'):$PORT"

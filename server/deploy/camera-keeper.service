@@ -1,0 +1,16 @@
+[Unit]
+Description=Camera Keeper (saves Arlo clips locally, sends alerts, web viewer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=camera-keeper
+WorkingDirectory=/opt/camera-keeper
+EnvironmentFile=/etc/camera-keeper/camera-keeper.env
+ExecStart=/opt/camera-keeper/venv/bin/python -m app.main
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

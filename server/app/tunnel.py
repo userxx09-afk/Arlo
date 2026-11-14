@@ -1,13 +1,13 @@
-"""Point ban.tapper.co at this server (Cloudflare Tunnel), from the Move page.
+"""Point bcn.tapper.co at this server (Cloudflare Tunnel), from the Move page.
 
 With a Cloudflare API token it does the whole thing:
   1. finds the zone (tapper.co) and its account
-  2. creates (or reuses) a tunnel named "ban-<this computer>", managed from Cloudflare
-  3. sets that tunnel to send ban.tapper.co to http://localhost:<port>
-  4. takes ban.tapper.co off any other Cloudflare-managed tunnel (tapper's, for example)
-  5. points the ban.tapper.co DNS record (CNAME, proxied) at the new tunnel
+  2. creates (or reuses) a tunnel named "bcn-<this computer>" (or an older "ban-<this computer>"), managed from Cloudflare
+  3. sets that tunnel to send bcn.tapper.co to http://localhost:<port>
+  4. takes bcn.tapper.co off any other Cloudflare-managed tunnel (tapper's, for example)
+  5. points the bcn.tapper.co DNS record (CNAME, proxied) at the new tunnel
   6. installs cloudflared as a Windows service with the tunnel's token (on Linux it shows the
-     command to run, since Arlo Keeper doesn't run as root there)
+     command to run, since Camera Keeper doesn't run as root there)
 
 The token needs: Account > Cloudflare Tunnel > Edit, and Zone > DNS > Edit (for tapper.co).
 It is used once and not saved.
@@ -30,7 +30,10 @@ from . import config, store
 log = logging.getLogger("tunnel")
 API = "https://api.cloudflare.com/client/v4"
 KEY = "tunnel"
-DEFAULT_HOSTNAME = "ban.tapper.co"
+DEFAULT_HOSTNAME = "bcn.tapper.co"
+# Names from before the rename to BCN. Phone apps, GarysTV settings and alert links sent before the
+# rename still use them, so the tunnel carries them too, to the same place.
+OLD_HOSTNAMES = {"bcn.tapper.co": ["ban.tapper.co"]}
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
 
@@ -43,7 +46,15 @@ def settings():
 
 
 def hostname():
-    return settings().get("hostname") or DEFAULT_HOSTNAME
+    h = settings().get("hostname") or DEFAULT_HOSTNAME
+    for new, old in OLD_HOSTNAMES.items():     # set up before the rename: use the new name now
+        if h in old:
+            return new
+    return h
+
+
+def _with_old_names(host):
+    return [host] + OLD_HOSTNAMES.get(host, [])
 
 
 class _CF:
@@ -78,15 +89,17 @@ def _zone_for(cf, host):
     raise TunnelError(f"No Cloudflare zone for {host} is visible to that token.")
 
 
-def _tunnel_name():
+def _tunnel_name(prefix="bcn"):
     host = re.sub(r"[^a-z0-9-]", "-", socket.gethostname().lower()).strip("-") or "server"
-    return f"ban-{host}"
+    return f"{prefix}-{host}"
 
 
 def _find_or_create_tunnel(cf, account, name):
-    found = cf.call("GET", f"/accounts/{account}/cfd_tunnel", params={"name": name, "is_deleted": "false"})
-    if found:
-        return found[0], False
+    """This computer's tunnel. One made before the rename (ban-<computer>) is reused, not doubled."""
+    for n in (name, _tunnel_name("ban")):
+        found = cf.call("GET", f"/accounts/{account}/cfd_tunnel", params={"name": n, "is_deleted": "false"})
+        if found:
+            return found[0], False
     t = cf.call("POST", f"/accounts/{account}/cfd_tunnel", json={"name": name, "config_src": "cloudflare"})
     return t, True
 
@@ -106,7 +119,7 @@ def _set_ingress(cf, account, tunnel_id, rules):
 
 
 def _take_off_other_tunnels(cf, account, host, keep_id):
-    """ban.tapper.co comes off any other Cloudflare-managed tunnel; its other names stay."""
+    """bcn.tapper.co comes off any other Cloudflare-managed tunnel; its other names stay."""
     moved = []
     for t in cf.call("GET", f"/accounts/{account}/cfd_tunnel", params={"is_deleted": "false"}) or []:
         if t["id"] == keep_id:
@@ -122,7 +135,7 @@ def _take_off_other_tunnels(cf, account, host, keep_id):
 def _point_dns(cf, zone_id, host, tunnel_id):
     target = f"{tunnel_id}.cfargotunnel.com"
     rec = {"type": "CNAME", "name": host, "content": target, "proxied": True, "ttl": 1,
-           "comment": "BAN / Arlo Keeper tunnel"}
+           "comment": "BCN / Camera Keeper tunnel"}
     existing = cf.call("GET", f"/zones/{zone_id}/dns_records", params={"name": host}) or []
     for r in existing:             # an A/AAAA record for the name would block the CNAME
         if r["type"] in ("A", "AAAA"):
@@ -140,7 +153,7 @@ def _point_dns(cf, zone_id, host, tunnel_id):
 # --- cloudflared on this machine ------------------------------------------------
 def _cloudflared():
     """cloudflared to run as the service. On Windows a copy is kept in ProgramData, so installing
-    an Arlo Keeper update never has to replace a running .exe."""
+    a Camera Keeper update never has to replace a running .exe."""
     if os.name == "nt":
         bundled = os.environ.get("CLOUDFLARED") or ""
         dest_dir = os.path.join(config.DATA_DIR, "cloudflared")
@@ -204,13 +217,13 @@ def service_state():
 
 
 def check_outside(host, wait=45):
-    """Does https://host answer as BAN yet? (The manifest needs no sign-in.)"""
+    """Does https://host answer as BCN yet? (The manifest needs no sign-in.)"""
     deadline = time.time() + wait
     last = ""
     while time.time() < deadline:
         try:
             r = requests.get(f"https://{host}/manifest.webmanifest", timeout=8)
-            if r.ok and "Arlo Notifications" in r.text:
+            if r.ok and ("Camera Notifications" in r.text or "Arlo Notifications" in r.text):
                 return True, "answers"
             last = f"answered {r.status_code}"
         except requests.RequestException as e:
@@ -220,10 +233,11 @@ def check_outside(host, wait=45):
 
 
 def _update_alert_links(host):
-    """Alert links: use https://ban.tapper.co if they were blank or pointed at a home address."""
+    """Alert links: use https://bcn.tapper.co if they were blank, a home address, or the old name."""
     from . import migrate, notify
     s = notify.current()
-    if not s.get("public_url") or migrate._is_lan(s.get("public_url")):
+    old = [f"https://{h}" for h in OLD_HOSTNAMES.get(host, [])]
+    if not s.get("public_url") or migrate._is_lan(s.get("public_url")) or s["public_url"].rstrip("/") in old:
         s["public_url"] = f"https://{host}"
         notify.save(s)
         return True
@@ -242,13 +256,15 @@ def setup_with_api(api_token, host=None, port=None):
     account = zone["account"]["id"]
     name = _tunnel_name()
     t, created = _find_or_create_tunnel(cf, account, name)
-    steps.append(f"Tunnel “{name}” {'created' if created else 'found'}.")
-    rules = [r for r in (_ingress(cf, account, t["id"]) or []) if r.get("hostname") and r.get("hostname") != host]
-    _set_ingress(cf, account, t["id"], [{"hostname": host, "service": f"http://localhost:{port}"}] + rules)
-    steps.append(f"{host} → http://localhost:{port} on this tunnel.")
-    for other in _take_off_other_tunnels(cf, account, host, t["id"]):
-        steps.append(f"{host} taken off tunnel “{other}” (its other names are untouched).")
-    steps.append(f"DNS for {host}: {_point_dns(cf, zone['id'], host, t['id'])}.")
+    steps.append(f"Tunnel “{t.get('name') or name}” {'created' if created else 'found'}.")
+    hosts = _with_old_names(host)
+    rules = [r for r in (_ingress(cf, account, t["id"]) or []) if r.get("hostname") and r.get("hostname") not in hosts]
+    _set_ingress(cf, account, t["id"], [{"hostname": h, "service": f"http://localhost:{port}"} for h in hosts] + rules)
+    for h in hosts:
+        steps.append(f"{h} → http://localhost:{port} on this tunnel." + (" (the old name, kept for older phones and links)" if h != host else ""))
+        for other in _take_off_other_tunnels(cf, account, h, t["id"]):
+            steps.append(f"{h} taken off tunnel “{other}” (its other names are untouched).")
+        steps.append(f"DNS for {h}: {_point_dns(cf, zone['id'], h, t['id'])}.")
     token = cf.call("GET", f"/accounts/{account}/cfd_tunnel/{t['id']}/token")
     svc = install_service(token)
     if svc["service"] == "installed":
@@ -257,7 +273,7 @@ def setup_with_api(api_token, host=None, port=None):
         steps.append("Run this on this server to start the tunnel: " + svc["command"])
     if _update_alert_links(host):
         steps.append(f"Alert links now open https://{host}.")
-    store.set_setting(KEY, {"hostname": host, "tunnel_id": t["id"], "tunnel_name": name, "account": account,
+    store.set_setting(KEY, {"hostname": host, "tunnel_id": t["id"], "tunnel_name": t.get("name") or name, "account": account,
                             "zone": zone["id"], "set_up": time.strftime("%Y-%m-%d %H:%M"), "how": "api"})
     ok, why = check_outside(host) if svc["service"] == "installed" else (False, "not started yet")
     steps.append(f"https://{host} answers from here. ✅" if ok else
@@ -273,7 +289,8 @@ def setup_with_token(tunnel_token, host=None):
         steps.append("cloudflared is running as a Windows service with that tunnel.")
     else:
         steps.append("Run this on this server: " + svc["command"])
-    steps.append(f"In the Cloudflare dashboard, the tunnel's public hostname {host} must point to "
+    names = " and ".join(_with_old_names(host))
+    steps.append(f"In the Cloudflare dashboard, the tunnel's public hostnames {names} must point to "
                  f"http://localhost:{config.WEB_PORT} (the dashboard updates DNS itself).")
     store.set_setting(KEY, {"hostname": host, "set_up": time.strftime("%Y-%m-%d %H:%M"), "how": "token"})
     ok, why = check_outside(host) if svc["service"] == "installed" else (False, "")

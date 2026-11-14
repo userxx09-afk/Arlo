@@ -1,12 +1,12 @@
-# Run by the installer (as admin). Sets up the "Arlo Keeper" scheduled task (starts at boot, runs
+# Run by the installer (as admin). Sets up the "Camera Keeper" scheduled task (starts at boot, runs
 # as SYSTEM with no window, restarts if it stops), opens the web port to the home network, and starts it.
 param([Parameter(Mandatory)][string]$AppDir)
 $ErrorActionPreference = 'Stop'
-$TaskName = 'Arlo Keeper'
+$TaskName = 'Camera Keeper'
 
 # Port from the settings file, if it was changed there.
 $Port = 8090
-$settings = Join-Path $env:ProgramData 'ArloKeeper\arlo-keeper.env'
+$settings = Join-Path $env:ProgramData 'CameraKeeper\camera-keeper.env'
 if (Test-Path $settings) {
     $m = Select-String -Path $settings -Pattern '^\s*WEB_PORT\s*=\s*(\d+)' | Select-Object -First 1
     if ($m) { $Port = [int]$m.Matches[0].Groups[1].Value }
@@ -21,7 +21,7 @@ $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopI
     -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew `
     -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal `
-    -Settings $taskSettings -Description 'Saves Arlo clips, sends alerts, serves the BAN web page.' -Force | Out-Null
+    -Settings $taskSettings -Description 'Saves camera clips, sends alerts, serves the BCN web page.' -Force | Out-Null
 
 # Let phones, TVs and GarysTV on the home network reach it (whatever Windows calls the network).
 Get-NetFirewallRule -DisplayName $TaskName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
@@ -30,7 +30,7 @@ New-NetFirewallRule -DisplayName $TaskName -Direction Inbound -Protocol TCP -Loc
 
 Start-ScheduledTask -TaskName $TaskName
 
-# Wait (up to 45 s) for the web page, so "Open Arlo Keeper" at the end of setup finds it.
+# Wait (up to 45 s) for the web page, so "Open Camera Keeper" at the end of setup finds it.
 $deadline = (Get-Date).AddSeconds(45)
 while ((Get-Date) -lt $deadline) {
     try {

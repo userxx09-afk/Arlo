@@ -1,9 +1,9 @@
-# Packages Arlo Keeper for Ubuntu (ArloKeeper-linux.tar.gz: the server folder with its installer)
-# and puts it on the "arlo-ubuntu" release in the public prod repo (this source repo is private).
-# Download: https://github.com/userxx09-afk/prod/releases/download/arlo-ubuntu/ArloKeeper-linux.tar.gz
+# Packages Camera Keeper for Ubuntu (CameraKeeper-linux.tar.gz: the server folder with its installer)
+# and puts it on the "camera-keeper-ubuntu" release in the public prod repo (this source repo is private).
+# Download: https://github.com/userxx09-afk/prod/releases/download/camera-keeper-ubuntu/CameraKeeper-linux.tar.gz
 # Install or update on Ubuntu 22.04/24.04:
-#   cd /tmp && curl -fLO https://github.com/userxx09-afk/prod/releases/download/arlo-ubuntu/ArloKeeper-linux.tar.gz
-#   tar xzf ArloKeeper-linux.tar.gz && sudo bash arlo-keeper/deploy/install.sh && rm -rf arlo-keeper ArloKeeper-linux.tar.gz
+#   cd /tmp && curl -fLO https://github.com/userxx09-afk/prod/releases/download/camera-keeper-ubuntu/CameraKeeper-linux.tar.gz
+#   tar xzf CameraKeeper-linux.tar.gz && sudo bash camera-keeper/deploy/install.sh && rm -rf camera-keeper CameraKeeper-linux.tar.gz
 # Needs the PROD_REPO_TOKEN secret (same as the Windows installer).
 name: Ubuntu package
 
@@ -33,44 +33,46 @@ jobs:
       - name: Check the code compiles
         run: python3 -m compileall -q server/app
 
-      - name: Make ArloKeeper-linux.tar.gz
+      - name: Make CameraKeeper-linux.tar.gz
         run: |
-          mkdir -p dist build/arlo-keeper
-          cp -r server/app server/deploy server/requirements.txt server/.env.example server/README.md build/arlo-keeper/
+          mkdir -p dist build/camera-keeper
+          cp -r server/app server/deploy server/requirements.txt server/.env.example server/README.md build/camera-keeper/
           find build -name __pycache__ -prune -exec rm -rf {} +
-          echo "$GITHUB_SHA" > build/arlo-keeper/BUILD
-          tar czf dist/ArloKeeper-linux.tar.gz -C build arlo-keeper
+          echo "$GITHUB_SHA" > build/camera-keeper/BUILD
+          tar czf dist/CameraKeeper-linux.tar.gz -C build camera-keeper
 
       - uses: actions/upload-artifact@v4
         continue-on-error: true   # the release below is what counts; Actions storage can be full
         with:
           retention-days: 1   # only passes files to the release; Actions storage is small
-          name: ArloKeeper-linux
-          path: dist/ArloKeeper-linux.tar.gz
+          name: CameraKeeper-linux
+          path: dist/CameraKeeper-linux.tar.gz
 
-      - name: Publish to the arlo-ubuntu release in prod
+      - name: Publish to the camera-keeper-ubuntu release in prod
         env:
           GH_TOKEN: ${{ secrets.PROD_REPO_TOKEN }}
           GH_REPO: userxx09-afk/prod
         run: |
-          tag=arlo-ubuntu
+          tag=camera-keeper-ubuntu
           cat > notes.md <<EOF
-          **Arlo Keeper for Ubuntu** (22.04 / 24.04). Built from $GITHUB_SHA.
+          **Camera Keeper for Ubuntu** (22.04 / 24.04). Built from $GITHUB_SHA.
 
-          Install or update (keeps clips, settings and the Arlo sign-in in /var/lib/arlo-keeper):
+          Install or update (keeps clips, settings and the Arlo sign-in in /var/lib/camera-keeper):
 
           \`\`\`
-          cd /tmp && curl -fLO https://github.com/$GH_REPO/releases/download/$tag/ArloKeeper-linux.tar.gz
-          tar xzf ArloKeeper-linux.tar.gz && sudo bash arlo-keeper/deploy/install.sh
-          rm -rf arlo-keeper ArloKeeper-linux.tar.gz
+          cd /tmp && curl -fLO https://github.com/$GH_REPO/releases/download/$tag/CameraKeeper-linux.tar.gz
+          tar xzf CameraKeeper-linux.tar.gz && sudo bash camera-keeper/deploy/install.sh
+          rm -rf camera-keeper CameraKeeper-linux.tar.gz
           \`\`\`
 
-          It runs as the systemd service arlo-keeper on port 8090. For ban.tapper.co see "DNS and addresses" in the README.
+          Coming from **Arlo Keeper** (the name before the rename): the same commands move it over (service, user, /var/lib/arlo-keeper and /etc/arlo-keeper).
+
+          It runs as the systemd service camera-keeper on port 8090. For bcn.tapper.co see "DNS and addresses" in the README.
           EOF
           if gh release view $tag >/dev/null 2>&1; then
-            gh release edit $tag --title "Arlo Keeper for Ubuntu" --notes-file notes.md --latest=false
+            gh release edit $tag --title "Camera Keeper for Ubuntu" --notes-file notes.md --latest=false
           else
-            gh release create $tag --title "Arlo Keeper for Ubuntu" --notes-file notes.md --latest=false --target main
+            gh release create $tag --title "Camera Keeper for Ubuntu" --notes-file notes.md --latest=false --target main
           fi
-          gh release upload $tag dist/ArloKeeper-linux.tar.gz --clobber
-          echo "Download: https://github.com/$GH_REPO/releases/download/$tag/ArloKeeper-linux.tar.gz" >> $GITHUB_STEP_SUMMARY
+          gh release upload $tag dist/CameraKeeper-linux.tar.gz --clobber
+          echo "Download: https://github.com/$GH_REPO/releases/download/$tag/CameraKeeper-linux.tar.gz" >> $GITHUB_STEP_SUMMARY

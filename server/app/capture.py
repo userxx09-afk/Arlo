@@ -135,7 +135,7 @@ class LiveCapture:
         return self._open_stream(cam)
 
     def _stop_stream(self, cam):
-        # Someone is watching this camera live in BAN: leave the stream running for them.
+        # Someone is watching this camera live in BCN: leave the stream running for them.
         if liveview.viewing(cam.device_id):
             return
         try:
