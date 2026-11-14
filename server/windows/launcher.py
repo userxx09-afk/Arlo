@@ -1,10 +1,10 @@
-"""Runs Arlo Keeper on Windows, the way systemd runs it on Ubuntu.
+"""Runs Camera Keeper on Windows, the way systemd runs it on Ubuntu.
 
-Started at boot by the "Arlo Keeper" scheduled task (as SYSTEM, no window). It:
-  - reads settings from %ProgramData%\\ArloKeeper\\arlo-keeper.env (KEY=VALUE lines)
+Started at boot by the "Camera Keeper" scheduled task (as SYSTEM, no window). It:
+  - reads settings from %ProgramData%\\CameraKeeper\\camera-keeper.env (KEY=VALUE lines)
   - puts the bundled ffmpeg first on PATH
   - starts `python -m app.main`, restarts it 10 s after it stops
-  - writes its output to %ProgramData%\\ArloKeeper\\logs\\arlo-keeper.log (kept under ~10 MB)
+  - writes its output to %ProgramData%\\CameraKeeper\\logs\\camera-keeper.log (kept under ~10 MB)
   - ties the app and its ffmpeg processes to itself, so ending the task stops all of them
 """
 import os
@@ -15,11 +15,11 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROGRAM_DATA = os.environ.get("ProgramData", r"C:\ProgramData")
-DATA_DIR = os.path.join(PROGRAM_DATA, "ArloKeeper")
-SETTINGS = os.path.join(DATA_DIR, "arlo-keeper.env")
+DATA_DIR = os.path.join(PROGRAM_DATA, "CameraKeeper")
+SETTINGS = os.path.join(DATA_DIR, "camera-keeper.env")
 LOG_DIR = os.path.join(DATA_DIR, "logs")
-LOG = os.path.join(LOG_DIR, "arlo-keeper.log")
-LOG_MAX = 5 * 1024 * 1024      # two files of this size: arlo-keeper.log and arlo-keeper.log.1
+LOG = os.path.join(LOG_DIR, "camera-keeper.log")
+LOG_MAX = 5 * 1024 * 1024      # two files of this size: camera-keeper.log and camera-keeper.log.1
 
 
 def read_settings(path):
@@ -108,7 +108,22 @@ def kill_with_me_job():
     return lambda proc: k32.AssignProcessToJobObject(job, wintypes.HANDLE(int(proc._handle)))
 
 
+def move_old_data():
+    """Before the rename to Camera Keeper the data lived in %ProgramData%\\ArloKeeper. Setup moves it;
+    if a locked file stopped that, try again here, before anything is created in the new folder."""
+    old = os.path.join(PROGRAM_DATA, "ArloKeeper")
+    if os.path.isdir(old) and not os.path.exists(DATA_DIR):
+        try:
+            os.rename(old, DATA_DIR)
+        except OSError:
+            return
+        old_env = os.path.join(DATA_DIR, "arlo-keeper.env")
+        if os.path.exists(old_env) and not os.path.exists(SETTINGS):
+            os.rename(old_env, SETTINGS)
+
+
 def main():
+    move_old_data()
     os.makedirs(DATA_DIR, exist_ok=True)
     log = Log()
     env = dict(os.environ)
@@ -119,7 +134,7 @@ def main():
         env["PUBLIC_URL"] = "http://%s:%s" % (local_ip(), env["WEB_PORT"])
     env["PATH"] = os.path.join(HERE, "ffmpeg") + os.pathsep + env.get("PATH", "")
     env["SETTINGS_FILE"] = SETTINGS                     # the Move page's import adds settings here
-    env["CLOUDFLARED"] = os.path.join(HERE, "cloudflared", "cloudflared.exe")   # for ban.tapper.co
+    env["CLOUDFLARED"] = os.path.join(HERE, "cloudflared", "cloudflared.exe")   # for bcn.tapper.co
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
 
@@ -131,7 +146,7 @@ def main():
     flags = 0x08000000 if os.name == "nt" else 0              # CREATE_NO_WINDOW
 
     while True:
-        log.note("starting Arlo Keeper (data in %s, port %s)" % (env["DATA_DIR"], env["WEB_PORT"]))
+        log.note("starting Camera Keeper (data in %s, port %s)" % (env["DATA_DIR"], env["WEB_PORT"]))
         proc = subprocess.Popen([py, "-m", "app.main"], cwd=HERE, env=env,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, creationflags=flags)
@@ -140,7 +155,7 @@ def main():
         for line in proc.stdout:
             log.write(line.rstrip(b"\r\n") + b"\r\n")
         code = proc.wait()
-        log.note("Arlo Keeper stopped (exit code %s); starting again in 10 seconds" % code)
+        log.note("Camera Keeper stopped (exit code %s); starting again in 10 seconds" % code)
         time.sleep(10)
 
 

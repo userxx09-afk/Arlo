@@ -1,9 +1,9 @@
-# Arlo Keeper
+# Camera Keeper
 
 Keeps local copies of your Arlo recordings (trimmed to 20 seconds), sends alerts, and gives you a web page to browse them.
 
 ```
-Arlo cameras ──► Arlo cloud / base-station USB ──► Arlo Keeper ──► ./data/clips/<camera>/<date>/<time>.mp4
+Arlo cameras ──► Arlo cloud / base-station USB ──► Camera Keeper ──► ./data/clips/<camera>/<date>/<time>.mp4
                                                        │
                                                        ├──► alerts (ntfy / Pushover / SMS / webhook)
                                                        └──► web viewer on :8080
@@ -27,7 +27,7 @@ Arlo cameras ──► Arlo cloud / base-station USB ──► Arlo Keeper ─�
 4. Start it:
    ```
    docker compose up -d --build
-   docker attach arlo-keeper     # type the 2FA code Arlo emails you, then Ctrl-P Ctrl-Q
+   docker attach camera-keeper     # type the 2FA code Arlo emails you, then Ctrl-P Ctrl-Q
    ```
    The session is saved in `./data/state`, so 2FA is only needed again if Arlo expires it. To skip typing codes, use `TFA_SOURCE=imap` with an email app password.
 5. Open `http://<host>:8080`.
@@ -70,9 +70,9 @@ app/web.py        viewer (Flask + waitress)
 data/             clips, clips.db, Arlo session   (created on first run)
 ```
 
-## BAN (Barb's Arlo Notifications)
+## BCN (Barb's Camera Notifications)
 
-The web page is branded BAN: GarysTV's navy look with an orange accent, Barb's photo at the top
+The web page is branded BCN: GarysTV's navy look with an orange accent, Barb's photo at the top
 (tap it to change; stored as `data/photo.jpg`, default `app/static/photo-default.jpg`).
 
 - **Cameras**: battery, last motion, **Watch live** (on demand) and **Record clip**.
@@ -82,7 +82,7 @@ The web page is branded BAN: GarysTV's navy look with an orange accent, Barb's p
   select several to star/delete. New clips appear on their own.
 - **Phone app**: `../android` (build with `android\build.ps1`). It shows this page laid out for
   a phone, and notifies on motion through `GET /api/events` (server-sent events, `app/events.py`).
-  The Alerts page offers the APK at `/ban.apk` to Android phones.
+  The Alerts page offers the APK at `/bcn.apk` to Android phones.
 
 New API: `/api/status`, `/api/camera/<id>/live` (POST start, GET state), `/api/camera/<id>/live.mjpg`,
 `/api/camera/<id>/record`, `/api/clip/<key>/star`, `DELETE /api/clip/<key>`, `/api/clips/bulk`,

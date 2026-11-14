@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Alerts · BAN{% endblock %}
+{% block title %}Alerts · BCN{% endblock %}
 {% block header %}<div class="meta"><span>Alerts</span></div>{% endblock %}
 {% block body %}
 <section class="panel" id="phone-panel" hidden>
   <h2>📱 This phone</h2>
-  <p>The BAN app shows a notification the moment a camera sees motion, then adds the picture once the clip is saved. Tap it to watch. Works on the home Wi-Fi, or away from home over TapperVPN.</p>
+  <p>The BCN app shows a notification the moment a camera sees motion, then adds the picture once the clip is saved. Tap it to watch. Works on the home Wi-Fi, or away from home over TapperVPN.</p>
   <label class="check"><input type="checkbox" id="ph-on"> Notify me on this phone when a camera sees motion</label>
   <div id="ph-cams" hidden style="margin:6px 0 4px">
     <label class="check"><input type="radio" name="ph-which" id="ph-all"> All cameras</label>
@@ -14,15 +14,15 @@
   <div class="muted" id="ph-state" style="margin:4px 0 10px"></div>
   <div class="actions" style="margin-top:4px">
     <button type="button" id="ph-test">Send a test notification</button>
-    <button type="button" id="ph-batt" hidden>Let BAN run in the background</button>
+    <button type="button" id="ph-batt" hidden>Let BCN run in the background</button>
     <button type="button" id="ph-server">Server address…</button>
     <button type="button" id="ph-update" hidden>Check for updates</button>
   </div>
 </section>
 <section class="panel" id="get-app" hidden>
-  <h2>📱 BAN for Android phones</h2>
+  <h2>📱 BCN for Android phones</h2>
   <p>Get a notification on your phone when a camera sees motion, and watch any camera live. Open this page on the phone, tap Download, then open the file to install it (allow installs from this browser if Android asks).</p>
-  <a class="btn primary" href="{{ url_for('apk') }}">Download the BAN app</a>
+  <a class="btn primary" href="{{ url_for('apk') }}">Download the BCN app</a>
 </section>
 
 {% if results %}
@@ -78,7 +78,7 @@
 {% if not outside %}
 <section class="panel">
   <h2>🚚 Move to another server</h2>
-  <p>Export everything from this server and import it on a new one (Windows or Ubuntu), then point ban.tapper.co at it.</p>
+  <p>Export everything from this server and import it on a new one (Windows or Ubuntu), then point bcn.tapper.co at it.</p>
   <a class="btn" href="{{ url_for('move') }}">Move to another server</a>
 </section>
 {% endif %}
@@ -97,7 +97,7 @@
 <section class="panel">
   <h2>Push notifications (optional)</h2>
   <p>Free alternative to texts, with the snapshot attached. Install the ntfy app, subscribe to a hard-to-guess topic, and paste its URL.</p>
-  <div class="field"><label>ntfy topic URL</label><input type="url" name="ntfy_url" value="{{ s.ntfy_url }}" placeholder="https://ntfy.sh/arlo-keeper-xyz123"></div>
+  <div class="field"><label>ntfy topic URL</label><input type="url" name="ntfy_url" value="{{ s.ntfy_url }}" placeholder="https://ntfy.sh/camera-keeper-xyz123"></div>
   <div class="field"><label>Pushover user key</label><input type="text" name="pushover_user" value="{{ s.pushover_user }}"></div>
   <div class="field"><label>Pushover app token</label><input type="password" name="pushover_token" placeholder="{{ 'saved — leave blank to keep' if s.pushover_token else '' }}" autocomplete="new-password"></div>
   <div class="field"><label>Webhook URL</label><input type="url" name="webhook_url" value="{{ s.webhook_url }}" placeholder="Home Assistant, etc."></div>
@@ -134,7 +134,7 @@
     $("#ph-batt").hidden = batt || !A.notificationsEnabled();
     $("#ph-state").textContent = (A.notificationsEnabled() ? A.connectionState() : "Notifications are off on this phone.") +
       " · Server " + A.server() + " · App " + A.version() + (A.updateState && A.updateState() ? " · " + A.updateState() : "") +
-      (batt ? "" : " · Android may pause BAN to save battery");
+      (batt ? "" : " · Android may pause BCN to save battery");
   }
   $("#ph-on").onchange = () => { A.setNotifications($("#ph-on").checked); setTimeout(show, 800); cams(); };
 

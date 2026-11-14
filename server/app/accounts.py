@@ -1,4 +1,4 @@
-"""All the Arlo accounts BAN watches, behind one object the web page uses like a single recorder.
+"""All the Arlo accounts BCN watches, behind one object the web page uses like a single recorder.
 
 Each account gets its own Recorder (its own pyaarlo sign-in and session folder). If two accounts
 can see the same camera, the first account that has it owns it: only that one records it, so a

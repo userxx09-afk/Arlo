@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Laview & IP cameras · BAN{% endblock %}
+{% block title %}Laview & IP cameras · BCN{% endblock %}
 {% block header %}<div class="meta"><span>Laview & IP cameras</span></div>{% endblock %}
 {% block style %}
   .acct .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -37,13 +37,13 @@
       <div class="field"><label>RTSP port</label><input type="number" name="rtsp_port" value="{{ s.rtsp_port or '' }}" placeholder="554"></div>
       <div class="field"><label>ONVIF port</label><input type="number" name="onvif_port" value="{{ s.onvif_port or '' }}" placeholder="80, 8000, 8899…"></div>
       <div class="field"><label>Motion</label><select name="motion">
-        {% for v, t in [('auto', 'From the camera, else BAN watches the video'), ('camera', 'Only from the camera'), ('video', 'BAN watches the video'), ('off', 'Off (live view and Record clip only)')] %}
+        {% for v, t in [('auto', 'From the camera, else BCN watches the video'), ('camera', 'Only from the camera'), ('video', 'BCN watches the video'), ('off', 'Off (live view and Record clip only)')] %}
         <option value="{{ v }}" {{ 'selected' if (s.motion or 'auto') == v }}>{{ t }}</option>{% endfor %}</select></div>
-      <div class="field"><label>When BAN watches the video</label><select name="sensitivity">
+      <div class="field"><label>When BCN watches the video</label><select name="sensitivity">
         {% for v, t in [('low', 'Less sensitive'), ('medium', 'Normal'), ('high', 'More sensitive')] %}
         <option value="{{ v }}" {{ 'selected' if (s.sensitivity or 'medium') == v }}>{{ t }}</option>{% endfor %}</select></div>
     </div>
-    <div class="field"><label>RTSP address (only if BAN can't find the video)</label><input type="text" name="rtsp_url" value="{{ s.rtsp_url or '' }}" placeholder="rtsp://192.168.4.60:554/Streaming/Channels/101" autocapitalize="none"></div>
+    <div class="field"><label>RTSP address (only if BCN can't find the video)</label><input type="text" name="rtsp_url" value="{{ s.rtsp_url or '' }}" placeholder="rtsp://192.168.4.60:554/Streaming/Channels/101" autocapitalize="none"></div>
     <div class="field"><label>Small RTSP stream (optional, used for watching motion)</label><input type="text" name="sub_url" value="{{ s.sub_url or '' }}" placeholder="rtsp://192.168.4.60:554/Streaming/Channels/102" autocapitalize="none"></div>
   </details>
 {% endmacro %}

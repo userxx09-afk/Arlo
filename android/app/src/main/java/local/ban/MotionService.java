@@ -28,7 +28,7 @@ import java.text.DateFormat;
 import java.util.Date;
 
 /**
- * Keeps one connection open to Arlo Keeper's /api/events. When a camera sees motion it shows a
+ * Keeps one connection open to Camera Keeper's /api/events. When a camera sees motion it shows a
  * notification at once ("Motion: Front Door", tap to watch live), and when the clip is saved
  * it updates that notification with the picture (tap to play the clip).
  *
@@ -37,7 +37,7 @@ import java.util.Date;
  * moment it happens. It needs the phone to reach the server: home Wi-Fi, or TapperVPN.
  */
 public class MotionService extends Service {
-    static final String TAG = "BAN";
+    static final String TAG = "BCN";
     static final String CH_MOTION = "motion";
     static final String CH_WATCH = "watching";
     static final int ID_WATCH = 1;
@@ -75,7 +75,7 @@ public class MotionService extends Service {
         motion.enableLights(true);
         nm.createNotificationChannel(motion);
         NotificationChannel watch = new NotificationChannel(CH_WATCH, "Watching for motion", NotificationManager.IMPORTANCE_MIN);
-        watch.setDescription("The quiet notification Android needs while BAN listens for motion. You can hide it here.");
+        watch.setDescription("The quiet notification Android needs while BCN listens for motion. You can hide it here.");
         watch.setShowBadge(false);
         nm.createNotificationChannel(watch);
     }
@@ -158,8 +158,8 @@ public class MotionService extends Service {
         while (running) {
             if (rediscover) {
                 rediscover = false;
-                setState("Finding BAN…");
-                Discovery.findCached(this);   // home Wi-Fi first, then ban.tapper.co
+                setState("Finding BCN…");
+                Discovery.findCached(this);   // home Wi-Fi first, then bcn.tapper.co
             }
             String base = server();
             try {
@@ -176,7 +176,7 @@ public class MotionService extends Service {
                 if (cookie != null) c.setRequestProperty("Cookie", cookie);
                 int code = c.getResponseCode();
                 if (code == 401) {
-                    setState("Open BAN and sign in, so it can watch for motion away from home.");
+                    setState("Open BCN and sign in, so it can watch for motion away from home.");
                     signInNeeded = true;
                     throw new Exception("needs sign-in");
                 }
@@ -305,7 +305,7 @@ public class MotionService extends Service {
         return new Notification.Builder(this, CH_WATCH)
                 .setSmallIcon(R.drawable.ic_stat_ban)
                 .setColor(0xFFFF7A1A)
-                .setContentTitle("BAN is watching for motion")
+                .setContentTitle("BCN is watching for motion")
                 .setContentText(text)
                 .setOngoing(true)
                 .setShowWhen(false)

@@ -1,11 +1,15 @@
-# BAN — Barb's Arlo Notifications
+# BCN — Barb's Camera Notifications
 
-Keeps local copies of Arlo camera clips, shows them on a web page, lets you watch any camera
+Formerly BAN (Barb's Arlo Notifications), with the server called Arlo Keeper. It now covers Arlo,
+Blink and Laview/IP cameras, so it's Camera Keeper on the server and BCN on the page and phone.
+Updating an Arlo Keeper install moves it over by itself (see [Renamed from Arlo Keeper](#renamed-from-arlo-keeper)).
+
+Keeps local copies of Arlo, Blink and IP camera clips, shows them on a web page, lets you watch any camera
 live, and notifies a phone the moment a camera sees motion. No Arlo subscription needed.
 
 ```
-server/    Arlo Keeper: the service on the home server (Python, Flask) and the BAN web page
-android/   BAN for Android: the web page laid out for a phone, plus motion notifications
+server/    Camera Keeper: the service on the home server (Python, Flask) and the BCN web page
+android/   BCN for Android: the web page laid out for a phone, plus motion notifications
 ```
 
 ## The web page
@@ -27,11 +31,11 @@ then the code Blink sends). Their motion pops up on GarysTV like an Arlo camera'
 GarysTV's Settings > Arlo), goes to the phone app, and sends the usual alerts; the clip is saved
 with the others. Uses [blinkpy](https://github.com/fronzbot/blinkpy).
 
-- Blink has no instant motion push: BAN checks every 30 s (`BLINK_POLL_SECONDS`).
+- Blink has no instant motion push: BCN checks every 30 s (`BLINK_POLL_SECONDS`).
 - Blink only reports motion once it has saved a clip, in its cloud (Blink plan, or an account from
   before April 2020) or on a USB drive in a **Sync Module 2** (no plan). The system must be armed.
 - If the clip can't be downloaded, the GarysTV pop-up shows the camera's motion picture instead.
-- No live view in BAN for Blink (use the Blink app). **Record clip** works.
+- No live view in BCN for Blink (use the Blink app). **Record clip** works.
 
 ## Laview and other IP cameras
 
@@ -40,19 +44,19 @@ Laview IP cameras and recorders (NVR/DVR), and most RTSP or ONVIF cameras. They 
 motion pops up on GarysTV (tick them in Settings › Arlo; they have their own "Laview & IP cameras"
 account tab), goes to the phone app and the alerts, records a clip, and Live view works.
 
-Enter the camera's address, user name (usually `admin`) and the camera's own password. BAN works out
+Enter the camera's address, user name (usually `admin`) and the camera's own password. BCN works out
 the rest (`server/app/ipcam.py`):
 
-| Camera | How BAN knows it | Video | Motion |
+| Camera | How BCN knows it | Video | Motion |
 |---|---|---|---|
 | Laview / Hikvision-type (most Laview IP cameras and NVRs) | `/ISAPI/System/deviceInfo` | `rtsp://…:554/Streaming/Channels/101` (`102` small; channel N = `N01`) | `/ISAPI/Event/notification/alertStream` (motion, line crossing, intrusion, PIR, person/vehicle) |
 | Laview / Dahua-type | `/cgi-bin/magicBox.cgi` | `rtsp://…/cam/realmonitor?channel=1&subtype=0` | `/cgi-bin/eventManager.cgi?action=attach` (VideoMotion, SmartMotion, tripwire, intrusion) |
 | Any ONVIF camera | ONVIF GetDeviceInformation (ports 80, 8000, 8080, 8899, 2020, 5000, 10080) | GetStreamUri, biggest and smallest profile | PullPoint events (cell motion, motion alarm, line/field detector, people/vehicle) |
-| RTSP only | the usual addresses on ports 554, 8554, 10554 (Hikvision, Dahua, Reolink, TP-Link and no-name paths), or one typed in | as found | BAN watches the small stream (ffmpeg scene change, sensitivity Low/Normal/High) |
+| RTSP only | the usual addresses on ports 554, 8554, 10554 (Hikvision, Dahua, Reolink, TP-Link and no-name paths), or one typed in | as found | BCN watches the small stream (ffmpeg scene change, sensitivity Low/Normal/High) |
 
-- **Motion:** *From the camera, else BAN watches the video* (default), *Only from the camera*,
-  *BAN watches the video*, or *Off* (Live view and Record clip only). If the camera's events stop
-  working, BAN falls back to watching the video.
+- **Motion:** *From the camera, else BCN watches the video* (default), *Only from the camera*,
+  *BCN watches the video*, or *Off* (Live view and Record clip only). If the camera's events stop
+  working, BCN falls back to watching the video.
 - **Recorders:** enter the NVR/DVR address and *How many channels to add*: each channel is a camera.
 - **Find cameras on this network** asks ONVIF (WS-Discovery) and Hikvision SADP (what Laview's tools use).
   It also points out cameras that haven't been activated yet.
@@ -68,21 +72,21 @@ the rest (`server/app/ipcam.py`):
 
 **Alerts → Move to another server** (`/move`, home network only):
 
-1. Install Arlo Keeper on the new server (Windows: the setup below). Don't sign in to Arlo there.
+1. Install Camera Keeper on the new server (Windows: the setup below). Don't sign in to Arlo there.
 2. Old server: **Download export** (one .zip: Arlo and Blink accounts, sessions, phone numbers,
    alert settings, the away-from-home password, Barb's photo, the clips; or settings only).
 3. Old server: **Turn off recording here** (Arlo allows one server per login).
 4. New server, at `http://localhost:8090/move`: **Import** the .zip. It restarts and brings it all in.
-5. New server: **Point ban.tapper.co here**, with a Cloudflare API token (Account · Cloudflare
+5. New server: **Point bcn.tapper.co here**, with a Cloudflare API token (Account · Cloudflare
    Tunnel · Edit and Zone · DNS · Edit). It makes a tunnel for this server, moves the
-   ban.tapper.co DNS record to it, takes the name off the old tunnel (trains.tapper.co etc. stay)
+   bcn.tapper.co DNS record to it, takes the name off the old tunnel (trains.tapper.co etc. stay)
    and installs cloudflared as a Windows service. Or paste a tunnel token made in the dashboard.
 6. Delete the export file: it holds the passwords.
 
 Command line instead (handy for very big exports): Ubuntu `sudo bash server/deploy/move.sh export FILE`
-/ `import FILE`; Windows (admin) `"C:\Program Files\Arlo Keeper\import.ps1" FILE`.
+/ `import FILE`; Windows (admin) `"C:\Program Files\Camera Keeper\import.ps1" FILE`.
 If the old tunnel was set up from a config file on tapper (not in the Cloudflare dashboard), the DNS
-move still sends ban.tapper.co to the new server; remove the ban line from tapper's config.yml to tidy up.
+move still sends bcn.tapper.co to the new server; remove the ban/bcn lines from tapper's config.yml to tidy up.
 
 ## Away from home
 
@@ -98,66 +102,66 @@ See [server/README.md](server/README.md). Both builds are made by GitHub Actions
 
 | | Download | Workflow |
 |---|---|---|
-| Windows | [ArloKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe) | `.github/workflows/windows-installer.yml` |
-| Ubuntu | [ArloKeeper-linux.tar.gz](https://github.com/userxx09-afk/prod/releases/download/arlo-ubuntu/ArloKeeper-linux.tar.gz) | `.github/workflows/ubuntu-package.yml` |
+| Windows | [CameraKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/camera-keeper-windows/CameraKeeper-Setup.exe) | `.github/workflows/windows-installer.yml` |
+| Ubuntu | [CameraKeeper-linux.tar.gz](https://github.com/userxx09-afk/prod/releases/download/camera-keeper-ubuntu/CameraKeeper-linux.tar.gz) | `.github/workflows/ubuntu-package.yml` |
 
 **On Ubuntu** (22.04/24.04), install or update, leaving nothing behind in /tmp:
 
 ```
-cd /tmp && curl -fLO https://github.com/userxx09-afk/prod/releases/download/arlo-ubuntu/ArloKeeper-linux.tar.gz
-tar xzf ArloKeeper-linux.tar.gz && sudo bash arlo-keeper/deploy/install.sh
-rm -rf arlo-keeper ArloKeeper-linux.tar.gz
+cd /tmp && curl -fLO https://github.com/userxx09-afk/prod/releases/download/camera-keeper-ubuntu/CameraKeeper-linux.tar.gz
+tar xzf CameraKeeper-linux.tar.gz && sudo bash camera-keeper/deploy/install.sh
+rm -rf camera-keeper CameraKeeper-linux.tar.gz
 ```
 
-It runs as the systemd service `arlo-keeper` on port 8090; data is in `/var/lib/arlo-keeper`,
-settings in `/etc/arlo-keeper/arlo-keeper.env`. Updates never touch either. Or
+It runs as the systemd service `camera-keeper` on port 8090; data is in `/var/lib/camera-keeper`,
+settings in `/etc/camera-keeper/camera-keeper.env`. Updates never touch either. Or
 `docker compose up -d --build` in `server/`.
 
-**On Windows:** download [ArloKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe)
+**On Windows:** download [CameraKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/camera-keeper-windows/CameraKeeper-Setup.exe)
 and run it (if Windows says it protected your PC: **More info → Run anyway**). It brings its own
-Python and ffmpeg, starts Arlo Keeper at every boot with no window (scheduled task "Arlo Keeper",
+Python and ffmpeg, starts Camera Keeper at every boot with no window (scheduled task "Camera Keeper",
 running as SYSTEM, restarted if it stops), lets the home network reach port 8090, includes
-cloudflared for ban.tapper.co (see Moving to another server), and opens
+cloudflared for bcn.tapper.co (see Moving to another server), and opens
 http://localhost:8090 to sign in to Arlo. The Start menu has Restart, the log and the settings file.
-Clips, settings and the Arlo sign-in are in `C:\ProgramData\ArloKeeper` and survive updates and
+Clips, settings and the Arlo sign-in are in `C:\ProgramData\CameraKeeper` and survive updates and
 uninstalling. To update, run the newest setup over the old one. GitHub Actions builds it
 (`.github/workflows/windows-installer.yml`, files in `server/windows/`) whenever the server changes.
 
-Only one Arlo Keeper can use an Arlo login at a time: Arlo signs out the other one.
+Only one Camera Keeper can use an Arlo login at a time: Arlo signs out the other one.
 
 ## DNS and addresses
 
-`ban.tapper.co` is a Cloudflare DNS record (zone tapper.co) pointing at a **Cloudflare Tunnel**,
-not at an IP address. cloudflared on the Arlo Keeper server carries it to `http://localhost:8090`.
+`bcn.tapper.co` is a Cloudflare DNS record (zone tapper.co) pointing at a **Cloudflare Tunnel**,
+not at an IP address. cloudflared on the Camera Keeper server carries it to `http://localhost:8090`.
 
 - **Getting it right after a move:** on the new server, **Alerts → Move to another server →
-  Point ban.tapper.co here** (needs a Cloudflare API token with Account · Cloudflare Tunnel · Edit
-  and Zone · DNS · Edit). It makes the tunnel, changes the `ban` CNAME to
+  Point bcn.tapper.co here** (needs a Cloudflare API token with Account · Cloudflare Tunnel · Edit
+  and Zone · DNS · Edit). It makes the tunnel, changes the `bcn` CNAME (and the old `ban` one) to
   `<tunnel-id>.cfargotunnel.com` (proxied, orange cloud), and installs cloudflared as a service.
-- **Check it:** `nslookup ban.tapper.co` gives Cloudflare addresses (104.21.x / 172.67.x), never a
-  home IP. `https://ban.tapper.co` shows the sign-in page from outside. In the Cloudflare dashboard,
+- **Check it:** `nslookup bcn.tapper.co` gives Cloudflare addresses (104.21.x / 172.67.x), never a
+  home IP. `https://bcn.tapper.co` shows the sign-in page from outside. In the Cloudflare dashboard,
   Zero Trust → Networks → Tunnels shows the tunnel **Healthy**, with the public hostname
-  `ban.tapper.co → http://localhost:8090`. Only one tunnel may carry the name: remove it from the
+  `bcn.tapper.co → http://localhost:8090`. Only one tunnel may carry the name: remove it from the
   old server's tunnel (or its `config.yml` on tapper) so the two don't take turns.
 - **No port on the Cloudflare name.** Cloudflare only passes the web ports, so
-  `http://ban.tapper.co:8090` never answers. Use `https://ban.tapper.co`.
-- **Not for motion pop-ups.** Arlo Keeper pushes motion to GarysTV at the address it was asked
+  `http://bcn.tapper.co:8090` never answers. Use `https://bcn.tapper.co`.
+- **Not for motion pop-ups.** Camera Keeper pushes motion to GarysTV at the address it was asked
   from, and through the tunnel that's only Cloudflare. A GarysTV that needs pop-ups uses the home
   or VPN address: `http://<server>:8090` on the home network, or the TapperVPN address (tapper is
   `http://100.64.0.2:8090`). Those need no password.
 
-**GarysTV through ban.tapper.co** (clips only): Settings › Arlo › address
-`https://name:password@ban.tapper.co`, with the away-from-home name and password from
+**GarysTV through bcn.tapper.co** (clips only): Settings › Arlo › address
+`https://name:password@bcn.tapper.co`, with the away-from-home name and password from
 **Alerts → Away from home**. GarysTV sends them with every request (HTTP Basic); characters like
 `@` or `:` in the password are written `%40` and `%3A`. Eight wrong tries lock that address out
 for 15 minutes.
 
 ## Android app
 
-**Download on the phone:** [BAN.apk](https://raw.githubusercontent.com/userxx09-afk/prod/main/arlo/BAN.apk) (version 1.2, Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. After that, the app updates itself from the public prod repo: it reads `arlo/latest.json` there (copied from this repo's `downloads/`) and offers the new APK.
+**Download on the phone:** [BCN.apk](https://raw.githubusercontent.com/userxx09-afk/prod/main/bcn/BCN.apk) (Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. After that, the app updates itself from the public prod repo: it reads `bcn/latest.json` there (copied from this repo's `downloads/`) and offers the new APK.
 
 See [android/README.md](android/README.md) to build it. `android\build.ps1` builds a signed APK and copies
-it to the server, where the Alerts page offers it (`/ban.apk`) to Android phones.
+it to the server, where the Alerts page offers it (`/bcn.apk`) to Android phones.
 
 The app keeps one connection open to `GET /api/events` (server-sent events) and posts a
 notification on motion, then updates it with the picture when the clip is saved. It needs to
@@ -176,3 +180,28 @@ reach the server: on the home network, or through whatever remote access you set
 | `POST /api/photo` | change the photo |
 
 Unofficial; uses [pyaarlo](https://github.com/twrecked/pyaarlo) to talk to Arlo.
+
+## Renamed from Arlo Keeper
+
+| | Before | Now |
+|---|---|---|
+| Name | BAN — Barb's Arlo Notifications / Arlo Keeper | BCN — Barb's Camera Notifications / Camera Keeper |
+| Away from home | `ban.tapper.co` | `bcn.tapper.co` (the tunnel carries both) |
+| Ubuntu | service and user `arlo-keeper`, `/opt/arlo-keeper`, `/var/lib/arlo-keeper`, `/etc/arlo-keeper/arlo-keeper.env` | `camera-keeper`, `/opt/camera-keeper`, `/var/lib/camera-keeper`, `/etc/camera-keeper/camera-keeper.env` |
+| Windows | task "Arlo Keeper", `C:\Program Files\Arlo Keeper`, `C:\ProgramData\ArloKeeper` | task "Camera Keeper", `C:\Program Files\Camera Keeper`, `C:\ProgramData\CameraKeeper` |
+| Downloads (prod) | releases `arlo-windows-installer`, `arlo-ubuntu`; `arlo/BAN.apk` | releases `camera-keeper-windows`, `camera-keeper-ubuntu`; `bcn/BCN.apk` |
+
+- **Ubuntu:** the usual update commands move it: `install.sh` stops the old service, renames the
+  user (same user id, so file owners stay right), moves the data and settings folders, and removes
+  `/opt/arlo-keeper`.
+- **Windows:** run the new CameraKeeper-Setup.exe over Arlo Keeper. It stops the old task, moves
+  ProgramData\ArloKeeper, repoints the tunnel service if the Move page set one up, and removes the
+  old program and Start-menu folders. Notes go to `%TEMP%\camera-keeper-migrate.log`.
+- **Phones:** the Android app keeps its package name and signing key, so it updates in place.
+  Phones still on BAN read `arlo/latest.json`, which now points at BCN.apk. The server still
+  answers to the old app (its manifest keeps "Arlo Notifications" in the description, and
+  `/ban.apk` still works).
+- **bcn.tapper.co:** on the server, **Move → Point bcn.tapper.co here** routes and points both
+  names at it. A tunnel set up by hand needs a public hostname `bcn.tapper.co` added next to
+  `ban.tapper.co`.
+

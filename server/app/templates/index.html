@@ -266,7 +266,7 @@
     else if (s.needs_login && !s.connected) html += `<div class="prompt"><h2>Connect your Arlo account</h2><p>${s.error ? "Sign-in failed: " + esc(s.error) : "Sign in once so new recordings can be saved here."}</p><a class="btn primary" href="/connect">Sign in to Arlo</a></div>`;
     else if (s.signing_in) html += `<div class="prompt"><h2>Signing in to Arlo…</h2><p><a href="/connect" style="text-decoration:underline">Open the sign-in page</a> if Arlo asks for a code.</p></div>`;
     if (s.alerts_need_setup && !window.BANApp) html += `<div class="prompt"><h2>Who should get a text when a camera sees motion?</h2>
-      <p>Enter a phone number, or install the BAN app on your phone for notifications.</p>
+      <p>Enter a phone number, or install the BCN app on your phone for notifications.</p>
       <form class="row" method="post" action="/settings/number"><input type="hidden" name="next" value="/settings">
       <input type="tel" name="number" placeholder="(773) 555-0123" autocomplete="tel" required>
       <input type="text" name="label" placeholder="Name (optional)" style="width:160px"><button class="primary">Add number</button></form></div>`;

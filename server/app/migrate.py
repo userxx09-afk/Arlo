@@ -1,20 +1,20 @@
-"""Move Arlo Keeper to another server: export everything from the old one, import it on the new one.
+"""Move Camera Keeper to another server: export everything from the old one, import it on the new one.
 
 An export is one .zip file:
     ban-export.json   what's in it (made by, when, clip count) and the portable settings
     clips.db          clip list + everything set on the web page: Arlo accounts and passwords,
                       phone numbers, Twilio/ntfy/Pushover, away-from-home password, GarysTV
     state/...         saved Arlo sessions (so the new server usually needs no new 2FA code)
-    photo.jpg         Barb's photo, ban.apk the phone app the Alerts page offers
+    photo.jpg         Barb's photo, bcn.apk the phone app the Alerts page offers
     clips/...         the saved clips and their pictures (optional)
 
 Importing replaces the database, Arlo sessions and photo, and adds clips the new server doesn't
-have yet. It has to happen while Arlo Keeper isn't running, so the web page saves the upload as
+have yet. It has to happen while Camera Keeper isn't running, so the web page saves the upload as
 import-pending.zip and restarts; main.py applies it before anything else starts.
 
 From a shell (the service stopped first):
-    python -m app.migrate export ban-export.zip [--no-clips]
-    python -m app.migrate import ban-export.zip [--settings-file PATH]
+    python -m app.migrate export bcn-export.zip [--no-clips]
+    python -m app.migrate import bcn-export.zip [--settings-file PATH]
 """
 import ipaddress
 import json
@@ -50,12 +50,12 @@ PORTABLE = (
 )
 
 # Files in DATA_DIR that are never copied (they belong to this machine or are rebuilt).
-SKIP_TOP = {"live", "logs", "arlo-keeper.env", PENDING, "import-result.json"}
+SKIP_TOP = {"live", "logs", "camera-keeper.env", PENDING, "import-result.json"}
 
 
 # --- what an export holds ------------------------------------------------------
 def _db_snapshot(dest):
-    """A consistent copy of clips.db, safe while Arlo Keeper is running (SQLite backup API)."""
+    """A consistent copy of clips.db, safe while Camera Keeper is running (SQLite backup API)."""
     src = sqlite3.connect(config.DB_PATH, timeout=30)
     out = sqlite3.connect(dest)
     try:
@@ -68,7 +68,7 @@ def _db_snapshot(dest):
 def _files():
     """(path inside the zip, path on disk) for everything but the database and clips."""
     out = []
-    for top in ("photo.jpg", "ban.apk"):
+    for top in ("photo.jpg", "bcn.apk"):
         p = os.path.join(config.DATA_DIR, top)
         if os.path.isfile(p):
             out.append((top, p))
@@ -111,7 +111,7 @@ def summary():
 def _manifest(include_clips, clip_count):
     return {
         "format": FORMAT,
-        "app": "Arlo Keeper / BAN",
+        "app": "Camera Keeper / BCN",
         "made": time.strftime("%Y-%m-%d %H:%M:%S"),
         "made_by": socket.gethostname(),
         "os": sys.platform,
@@ -195,9 +195,9 @@ def read_manifest(path):
         with zipfile.ZipFile(path) as zf:
             m = json.loads(zf.read(MANIFEST))
     except (zipfile.BadZipFile, KeyError, ValueError) as e:
-        raise ValueError(f"That isn't an Arlo Keeper export ({e}).")
+        raise ValueError(f"That isn't a Camera Keeper export ({e}).")
     if m.get("format", 0) > FORMAT:
-        raise ValueError("That export was made by a newer Arlo Keeper. Update this one first.")
+        raise ValueError("That export was made by a newer Camera Keeper. Update this one first.")
     return m
 
 
@@ -290,7 +290,7 @@ def merge_settings_file(path, settings, source):
 
 
 def apply_import(path, settings_file=None):
-    """Import an export into DATA_DIR. Arlo Keeper must not be running."""
+    """Import an export into DATA_DIR. Camera Keeper must not be running."""
     m = read_manifest(path)
     os.makedirs(config.DATA_DIR, exist_ok=True)
     result = {"from": m.get("made_by"), "made": m.get("made"), "clips_added": 0, "clips_kept": 0,
@@ -321,8 +321,8 @@ def apply_import(path, settings_file=None):
                 dest = _safe_target(config.STATE_DIR, name[len("state/"):])
                 if dest:
                     _extract(zf, info, dest)
-            elif name in ("photo.jpg", "ban.apk"):
-                _extract(zf, info, os.path.join(config.DATA_DIR, name))
+            elif name in ("photo.jpg", "bcn.apk", "ban.apk"):     # ban.apk: exports from before the rename
+                _extract(zf, info, os.path.join(config.DATA_DIR, "bcn.apk" if name == "ban.apk" else name))
             elif name.startswith("clips/"):
                 dest = _safe_target(config.CLIPS_DIR, name[len("clips/"):])
                 if not dest:
@@ -392,12 +392,12 @@ def restart_soon(delay=1.5):
 def main(argv=None):
     import argparse
     logging.basicConfig(level="INFO", format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
-    ap = argparse.ArgumentParser(prog="python -m app.migrate", description="Move Arlo Keeper to another server.")
+    ap = argparse.ArgumentParser(prog="python -m app.migrate", description="Move Camera Keeper to another server.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("export", help="write everything to a .zip")
     e.add_argument("file")
     e.add_argument("--no-clips", action="store_true", help="settings, accounts and sessions only")
-    i = sub.add_parser("import", help="bring a .zip in (stop Arlo Keeper first)")
+    i = sub.add_parser("import", help="bring a .zip in (stop Camera Keeper first)")
     i.add_argument("file")
     i.add_argument("--settings-file", default=os.environ.get("SETTINGS_FILE"),
                    help="env file to put the portable settings into")

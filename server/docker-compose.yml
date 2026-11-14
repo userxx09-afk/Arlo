@@ -1,7 +1,7 @@
 services:
-  arlo-keeper:
+  camera-keeper:
     build: .
-    container_name: arlo-keeper
+    container_name: camera-keeper
     restart: unless-stopped
     env_file: .env
     environment:

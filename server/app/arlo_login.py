@@ -1,7 +1,7 @@
 """Arlo accounts and their sign-in, from the web page.
 
-BAN can watch several Arlo accounts at once. Each one is saved as {id, username, password}; the
-first ("main") keeps the session folder Arlo Keeper always used, so an existing sign-in carries
+BCN can watch several Arlo accounts at once. Each one is saved as {id, username, password}; the
+first ("main") keeps the session folder Camera Keeper always used, so an existing sign-in carries
 over without a new code. Passwords and 2FA codes are typed into the Arlo page. pyaarlo lets us
 pass our own 2FA source object; its get() waits here until the code is entered on the page.
 """

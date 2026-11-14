@@ -22,8 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Finds Arlo Keeper: first on the home network (the last address that worked, then the usual
- * one, then a quick look around the Wi-Fi), then away from home at ban.tapper.co, then any
+ * Finds Camera Keeper: first on the home network (the last address that worked, then the usual
+ * one, then a quick look around the Wi-Fi), then away from home at bcn.tapper.co (or the old ban.tapper.co), then any
  * address typed in by hand. Returns null if none answers; the app then asks for an address.
  */
 final class Discovery {
@@ -33,7 +33,7 @@ final class Discovery {
 
     private Discovery() {}
 
-    /** Does this address answer as BAN? (The manifest needs no sign-in, even away from home.) */
+    /** Does this address answer as BCN? (The manifest needs no sign-in, even away from home.) */
     static boolean isBan(String base, int timeoutMs) {
         HttpURLConnection c = null;
         try {
@@ -48,7 +48,8 @@ final class Discovery {
             try (InputStream in = c.getInputStream()) {
                 while ((n = in.read(buf)) > 0 && sb.length() < 4096) sb.append(new String(buf, 0, n));
             }
-            return sb.indexOf("Arlo Notifications") >= 0;
+            // "Arlo Notifications": a server from before the rename to Barb's Camera Notifications.
+            return sb.indexOf("Camera Notifications") >= 0 || sb.indexOf("Arlo Notifications") >= 0;
         } catch (Exception e) {
             return false;
         } finally {
@@ -67,6 +68,7 @@ final class Discovery {
         String found = scanWifi(ctx);
         if (found != null) return remember(ctx, found, true);
         if (isBan(Prefs.REMOTE_SERVER, 8000)) return remember(ctx, Prefs.REMOTE_SERVER, false);
+        if (isBan(Prefs.OLD_REMOTE_SERVER, 6000)) return remember(ctx, Prefs.OLD_REMOTE_SERVER, false);
         String manual = Prefs.manualServer(ctx);
         if (manual != null && isBan(manual, 6000)) return remember(ctx, manual, false);
         lastRun = System.currentTimeMillis();
@@ -90,11 +92,11 @@ final class Discovery {
         Prefs.setServer(ctx, s);
         lastRun = System.currentTimeMillis();
         lastResult = s;
-        Log.i(MotionService.TAG, "BAN found at " + s);
+        Log.i(MotionService.TAG, "BCN found at " + s);
         return s;
     }
 
-    /** Ask every address on the phone's Wi-Fi (/24) for BAN on port 8090, many at once. */
+    /** Ask every address on the phone's Wi-Fi (/24) for BCN on port 8090, many at once. */
     private static String scanWifi(Context ctx) {
         try {
             ConnectivityManager cm = ctx.getSystemService(ConnectivityManager.class);

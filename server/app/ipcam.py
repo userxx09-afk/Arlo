@@ -1,7 +1,7 @@
 """Laview and other IP cameras, next to the Arlo and Blink ones.
 
 Laview sells cameras and recorders built on Hikvision and on Dahua hardware, and their newer
-cameras speak ONVIF. So one camera here is "anything with a local video stream", and BAN works
+cameras speak ONVIF. So one camera here is "anything with a local video stream", and BCN works
 out how to talk to it:
 
   * Hikvision-type (most Laview IP cameras and NVRs): ISAPI on the web port
@@ -12,7 +12,7 @@ out how to talk to it:
   * Anything ONVIF (Profile S/T): the video address from GetStreamUri, motion from a
     PullPoint subscription.
   * Plain RTSP: a list of the usual addresses is tried, or one typed in by hand.
-If the camera can't tell BAN about motion (or that's turned off), BAN watches the small stream
+If the camera can't tell BCN about motion (or that's turned off), BCN watches the small stream
 itself with ffmpeg's scene detection.
 
 On motion it is the same as an Arlo camera: capture.LiveCapture records a clip from the stream
@@ -214,7 +214,7 @@ def probe(url, seconds=8):
     try:
         out, err_text = proc.communicate(timeout=seconds + 6)
     except subprocess.TimeoutExpired:
-        proc.kill()                 # and don't wait on its pipes: a stuck camera must never stall BAN
+        proc.kill()                 # and don't wait on its pipes: a stuck camera must never stall BCN
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -277,7 +277,7 @@ class Http:
         return r
 
 
-# --- ONVIF (just the calls BAN needs, with a WS-UsernameToken) -------------------------------
+# --- ONVIF (just the calls BCN needs, with a WS-UsernameToken) -------------------------------
 NS_DEV = "http://www.onvif.org/ver10/device/wsdl"
 NS_MEDIA = "http://www.onvif.org/ver10/media/wsdl"
 NS_EVENTS = "http://www.onvif.org/ver10/events/wsdl"
@@ -453,7 +453,7 @@ def parse_dahua_events(text):
 
 # --- finding out what a camera is -------------------------------------------------------------
 def identify(c, stop=None):
-    """Everything BAN can learn about a camera. Raises ValueError with a plain reason."""
+    """Everything BCN can learn about a camera. Raises ValueError with a plain reason."""
     host, user, pw, ch = c["host"], c.get("username") or "", c.get("password") or "", int(c.get("channel") or 1)
     kind = c.get("kind") or "auto"
     found = {"kind": None, "maker": None, "model": None, "serial": None, "firmware": None,
@@ -841,9 +841,9 @@ class Hub:
             if (cam.found.get("onvif") or {}).get("events"):
                 sources.append(("camera (ONVIF events)", self._onvif_events))
         if want in ("auto", "video") and (want == "video" or not sources):
-            sources.append(("BAN watching the video", self._video_motion))
+            sources.append(("BCN watching the video", self._video_motion))
         if not sources:
-            cam.state["motion_source"] = "none: the camera has no motion events (choose “BAN watches the video”)"
+            cam.state["motion_source"] = "none: the camera has no motion events (choose “BCN watches the video”)"
             return self._keep_checking(cam)
         for label, fn in sources:
             cam.state.update(motion_source=label, events_ok=None)
@@ -865,7 +865,7 @@ class Hub:
         return None
 
     def motion(self, cam, active, what="motion"):
-        """The camera (or BAN, from the video) says something is moving."""
+        """The camera (or BCN, from the video) says something is moving."""
         cid = cam.device_id
         now = time.time()
         if not active:

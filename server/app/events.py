@@ -1,4 +1,4 @@
-"""Motion and clip events, sent live to the BAN phone app (and any open web page).
+"""Motion and clip events, sent live to the BCN phone app (and any open web page).
 
 The phone app keeps one connection open to GET /api/events (server-sent events). When a
 camera sees motion it gets a "motion" event straight away, then a "clip" event once the

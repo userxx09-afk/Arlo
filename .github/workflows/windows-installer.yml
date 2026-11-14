@@ -1,6 +1,6 @@
-# Builds ArloKeeper-Setup.exe (Arlo Keeper for Windows, with its own Python and ffmpeg) and puts it
-# on the "arlo-windows-installer" release in the public prod repo (this source repo is private).
-# Download: https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe
+# Builds CameraKeeper-Setup.exe (Camera Keeper for Windows, with its own Python and ffmpeg) and puts it
+# on the "camera-keeper-windows" release in the public prod repo (this source repo is private).
+# Download: https://github.com/userxx09-afk/prod/releases/download/camera-keeper-windows/CameraKeeper-Setup.exe
 # Needs the PROD_REPO_TOKEN secret.
 name: Windows installer
 
@@ -36,7 +36,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $b = 'build\ArloKeeper'
+          $b = 'build\CameraKeeper'
           New-Item -ItemType Directory -Force $b | Out-Null
 
           # Embeddable Python, same version as the one pip runs under (so compiled packages match)
@@ -62,7 +62,7 @@ jobs:
           Copy-Item (Get-ChildItem ff -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName "$b\ffmpeg"
           Copy-Item (Get-ChildItem ff -Recurse -Filter ffprobe.exe | Select-Object -First 1).FullName "$b\ffmpeg"
 
-          # cloudflared, for pointing ban.tapper.co at this PC from the Move page
+          # cloudflared, for pointing bcn.tapper.co at this PC from the Move page
           New-Item -ItemType Directory "$b\cloudflared" | Out-Null
           Invoke-WebRequest 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile "$b\cloudflared\cloudflared.exe"
           & "$b\cloudflared\cloudflared.exe" --version
@@ -71,8 +71,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $b = (Resolve-Path 'build\ArloKeeper').Path
-          $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'arlo-data'
+          $b = (Resolve-Path 'build\CameraKeeper').Path
+          $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'camera-keeper-data'
           $env:WEB_PORT = '8090'
           $env:PATH = "$b\ffmpeg;" + $env:PATH
           & "$b\ffmpeg\ffmpeg.exe" -version | Select-Object -First 1
@@ -87,7 +87,7 @@ jobs:
           if ($ok) { $r = Invoke-WebRequest http://127.0.0.1:8090/ -UseBasicParsing; $ok = $r.StatusCode -eq 200 }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
           Get-Content out.txt, err.txt -ErrorAction SilentlyContinue | Select-Object -Last 40
-          if (-not $ok) { throw 'Arlo Keeper did not answer on port 8090' }
+          if (-not $ok) { throw 'Camera Keeper did not answer on port 8090' }
           Remove-Item -Recurse -Force $env:DATA_DIR -ErrorAction SilentlyContinue
           Get-ChildItem $b -Recurse -Directory -Filter __pycache__ | Where-Object FullName -like "$b\app*" | Remove-Item -Recurse -Force
 
@@ -104,38 +104,40 @@ jobs:
           }
           & $iscc "/DAppVersion=$version" server\windows\installer.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed ($LASTEXITCODE)" }
-          Get-Item dist\ArloKeeper-Setup.exe | Format-List Name, Length
+          Get-Item dist\CameraKeeper-Setup.exe | Format-List Name, Length
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - uses: actions/upload-artifact@v4
         continue-on-error: true   # the release below is what counts; Actions storage can be full
         with:
           retention-days: 1   # only passes files to the release; Actions storage is small
-          name: ArloKeeper-Setup
-          path: dist/ArloKeeper-Setup.exe
+          name: CameraKeeper-Setup
+          path: dist/CameraKeeper-Setup.exe
 
-      - name: Publish to the arlo-windows-installer release in prod
+      - name: Publish to the camera-keeper-windows release in prod
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.PROD_REPO_TOKEN }}
           GH_REPO: userxx09-afk/prod
           VERSION: ${{ steps.build.outputs.version }}
         run: |
-          $tag = 'arlo-windows-installer'
+          $tag = 'camera-keeper-windows'
           $notes = @"
-          **Arlo Keeper $env:VERSION for Windows** (Windows 10/11, 64-bit). Built from $env:GITHUB_SHA.
+          **Camera Keeper $env:VERSION for Windows** (Windows 10/11, 64-bit). Built from $env:GITHUB_SHA.
 
-          Download **ArloKeeper-Setup.exe** below and run it. Windows may say it protected your PC: click **More info → Run anyway**.
-          Setup installs Arlo Keeper with its own Python and ffmpeg, starts it at every boot (no window), and opens http://localhost:8090 where you sign in to Arlo.
+          Download **CameraKeeper-Setup.exe** below and run it. Windows may say it protected your PC: click **More info → Run anyway**.
+          Setup installs Camera Keeper with its own Python and ffmpeg, starts it at every boot (no window), and opens http://localhost:8090 where you sign in to Arlo.
 
-          To update, run the newest ArloKeeper-Setup.exe over the old one. Clips, settings and the Arlo sign-in (in C:\ProgramData\ArloKeeper) are kept, also when uninstalling.
+          To update, run the newest CameraKeeper-Setup.exe over the old one. Clips, settings and the Arlo sign-in (in C:\ProgramData\CameraKeeper) are kept, also when uninstalling.
+
+          Coming from **Arlo Keeper** (the name before the rename): run this setup over it. It moves the clips, settings and sign-ins from C:\ProgramData\ArloKeeper and removes the old program, task and Start-menu folder.
           "@
           $notes | Set-Content notes.md -Encoding utf8
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Arlo Keeper for Windows" --notes-file notes.md --latest=false --target main
+            gh release create $tag --title "Camera Keeper for Windows" --notes-file notes.md --latest=false --target main
           } else {
-            gh release edit $tag --title "Arlo Keeper for Windows" --notes-file notes.md --latest=false
+            gh release edit $tag --title "Camera Keeper for Windows" --notes-file notes.md --latest=false
           }
-          gh release upload $tag dist\ArloKeeper-Setup.exe --clobber
-          "Download: https://github.com/$env:GH_REPO/releases/download/$tag/ArloKeeper-Setup.exe" >> $env:GITHUB_STEP_SUMMARY
+          gh release upload $tag dist\CameraKeeper-Setup.exe --clobber
+          "Download: https://github.com/$env:GH_REPO/releases/download/$tag/CameraKeeper-Setup.exe" >> $env:GITHUB_STEP_SUMMARY

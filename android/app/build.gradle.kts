@@ -4,7 +4,7 @@ plugins {
     id("com.android.application")
 }
 
-// Signing: signing.properties (next to settings.gradle.kts, not checked in) says where BAN's
+// Signing: signing.properties (next to settings.gradle.kts, not checked in) says where BCN's
 // own key is. Android only installs an update over the old app if both use the same key,
 // so always build releases with it. Without the file the build uses this machine's debug key.
 val signing = Properties().apply {

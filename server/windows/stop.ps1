@@ -1,6 +1,6 @@
-# Stops Arlo Keeper: ends the scheduled task and any of its python/ffmpeg processes still running.
+# Stops Camera Keeper: ends the scheduled task and any of its python/ffmpeg processes still running.
 param([string]$AppDir = $PSScriptRoot)
-Stop-ScheduledTask -TaskName 'Arlo Keeper' -ErrorAction SilentlyContinue
+Stop-ScheduledTask -TaskName 'Camera Keeper' -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 $dir = $AppDir.TrimEnd('\') + '\'
 Get-Process python, pythonw, ffmpeg, ffprobe -ErrorAction SilentlyContinue |
