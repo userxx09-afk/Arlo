@@ -33,6 +33,37 @@ with the others. Uses [blinkpy](https://github.com/fronzbot/blinkpy).
 - If the clip can't be downloaded, the GarysTV pop-up shows the camera's motion picture instead.
 - No live view in BAN for Blink (use the Blink app). **Record clip** works.
 
+## Laview and other IP cameras
+
+**Arlo → Laview & IP cameras** (`/connect/ip`) adds cameras that send video on the home network:
+Laview IP cameras and recorders (NVR/DVR), and most RTSP or ONVIF cameras. They work like Arlo ones:
+motion pops up on GarysTV (tick them in Settings › Arlo; they have their own "Laview & IP cameras"
+account tab), goes to the phone app and the alerts, records a clip, and Live view works.
+
+Enter the camera's address, user name (usually `admin`) and the camera's own password. BAN works out
+the rest (`server/app/ipcam.py`):
+
+| Camera | How BAN knows it | Video | Motion |
+|---|---|---|---|
+| Laview / Hikvision-type (most Laview IP cameras and NVRs) | `/ISAPI/System/deviceInfo` | `rtsp://…:554/Streaming/Channels/101` (`102` small; channel N = `N01`) | `/ISAPI/Event/notification/alertStream` (motion, line crossing, intrusion, PIR, person/vehicle) |
+| Laview / Dahua-type | `/cgi-bin/magicBox.cgi` | `rtsp://…/cam/realmonitor?channel=1&subtype=0` | `/cgi-bin/eventManager.cgi?action=attach` (VideoMotion, SmartMotion, tripwire, intrusion) |
+| Any ONVIF camera | ONVIF GetDeviceInformation (ports 80, 8000, 8080, 8899, 2020, 5000, 10080) | GetStreamUri, biggest and smallest profile | PullPoint events (cell motion, motion alarm, line/field detector, people/vehicle) |
+| RTSP only | the usual addresses on ports 554, 8554, 10554 (Hikvision, Dahua, Reolink, TP-Link and no-name paths), or one typed in | as found | BAN watches the small stream (ffmpeg scene change, sensitivity Low/Normal/High) |
+
+- **Motion:** *From the camera, else BAN watches the video* (default), *Only from the camera*,
+  *BAN watches the video*, or *Off* (Live view and Record clip only). If the camera's events stop
+  working, BAN falls back to watching the video.
+- **Recorders:** enter the NVR/DVR address and *How many channels to add*: each channel is a camera.
+- **Find cameras on this network** asks ONVIF (WS-Discovery) and Hikvision SADP (what Laview's tools use).
+  It also points out cameras that haven't been activated yet.
+- **Before adding a Laview camera:** activate it (Laview ONE app or SADP tool) to set its password; give
+  it a fixed address in the router; in its web page turn on RTSP and (for camera motion events) ONVIF
+  with a user, and turn on motion detection. Cloud-only Wi-Fi models with no RTSP/ONVIF can't be added.
+- Clips are converted to H.264, so H.265 cameras play everywhere. Passwords are kept with the other
+  settings (and go into exports, like the Arlo and Blink ones).
+- Tests with a fake Laview camera and a fake ONVIF camera: `python server/tests/fakecam_test.py` and
+  `python server/tests/fakeonvif_test.py` (need flask, requests and ffmpeg).
+
 ## Moving to another server
 
 **Alerts → Move to another server** (`/move`, home network only):

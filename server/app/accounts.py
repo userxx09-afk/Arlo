@@ -7,7 +7,7 @@ shared camera isn't recorded twice.
 import logging
 import threading
 
-from . import arlo_login, blink
+from . import arlo_login, blink, ipcam
 from .recorder import Recorder
 
 log = logging.getLogger("accounts")
@@ -20,7 +20,7 @@ class _Captures:
         self.fleet = fleet
 
     def live_file(self, live_id):
-        for r in self.fleet.recorders():
+        for r in self.fleet.recorders() + [self.fleet.ipcams]:
             path, recording = r.capture.live_file(live_id)
             if path:
                 return path, recording
@@ -37,12 +37,14 @@ class Fleet:
         self._lock = threading.Lock()
         self.capture = _Captures(self)
         self.blink = blink.Hub()  # Blink accounts: motion pop-ups on GarysTV and alerts
+        self.ipcams = ipcam.Hub()  # Laview and other RTSP/ONVIF cameras
 
     # --- accounts ---------------------------------------------------------
     def start_all(self):
         for a in arlo_login.accounts():
             self._start(a["id"])
         self.blink.start_all()
+        self.ipcams.start_all()
 
     def recorders(self):
         with self._lock:
@@ -132,9 +134,9 @@ class Fleet:
         connected = [r for r in recs if r.status.get("connected")]
         errors = [r.status.get("error") for r in recs if r.status.get("error") and not r.status.get("connected")]
         sweeps = [r.status.get("last_sweep") for r in recs if r.status.get("last_sweep")]
-        return {"connected": bool(connected) or self.blink.connected(),
+        return {"connected": bool(connected) or self.blink.connected() or self.ipcams.connected(),
                 "signing_in": any(r.status.get("signing_in") for r in recs),
-                "needs_login": (not recs and not blink.accounts()) or any(r.status.get("needs_login") for r in recs),
+                "needs_login": (not recs and not blink.accounts() and not ipcam.cameras()) or any(r.status.get("needs_login") for r in recs),
                 "error": errors[0] if errors else None,
                 "last_sweep": max(sweeps) if sweeps else None,
                 "accounts": len(recs),
@@ -142,6 +144,8 @@ class Fleet:
 
     def owner(self, cam_id):
         """The account that records this camera: the first one (in the order added) that has it."""
+        if self.ipcams.owns(cam_id):
+            return self.ipcams
         for r in self.recorders():
             if r.arlo and any(c.device_id == cam_id for c in r.arlo.cameras):
                 return r
@@ -163,7 +167,7 @@ class Fleet:
                     continue
                 seen.add(c["id"])
                 out.append({**c, "account": r.username})
-        return out + self.blink.cameras_view()
+        return out + self.blink.cameras_view() + self.ipcams.cameras_view()
 
     def modes(self):
         recs = [r for r in self.recorders() if r.arlo]
@@ -174,12 +178,16 @@ class Fleet:
         return out
 
     def record_now(self, cam_id):
+        if self.ipcams.owns(cam_id):
+            return self.ipcams.record_now(cam_id)
         if self.blink.owns(cam_id):
             return self.blink.record_now(cam_id)
         o = self.owner(cam_id)
         return bool(o and o.record_now(cam_id))
 
     def test_motion(self, cam_id):
+        if self.ipcams.owns(cam_id):
+            return self.ipcams.test_motion(cam_id)
         if self.blink.owns(cam_id):
             return self.blink.test_motion(cam_id)
         o = self.owner(cam_id)
