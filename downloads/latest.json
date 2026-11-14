@@ -1,7 +1,7 @@
 {
-  "versionCode": 4,
-  "versionName": "1.3",
+  "versionCode": 5,
+  "versionName": "1.4",
   "apk": "https://raw.githubusercontent.com/userxx09-afk/prod/main/bcn/BCN.apk",
-  "sha256": "021de905dda6b616ea5b4037b7400f71d8a7e3273211b12499de5962a2effe7c",
-  "notes": "Notifications: all cameras by default, or only the cameras you pick (Alerts > This phone)."
+  "sha256": "462224a69645ef083d754b4bd8ff59a6e3b0e9ff43a38ca3ad72c8ab35733d47",
+  "notes": "Now called BCN (Barb's Camera Notifications), with a new icon. Away from home it uses bcn.tapper.co, and still finds the server at ban.tapper.co."
 }

@@ -158,7 +158,7 @@ for 15 minutes.
 
 ## Android app
 
-**Download on the phone:** [BCN.apk](https://raw.githubusercontent.com/userxx09-afk/prod/main/bcn/BCN.apk) (Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. After that, the app updates itself from the public prod repo: it reads `bcn/latest.json` there (copied from this repo's `downloads/`) and offers the new APK.
+**Download on the phone:** [BCN.apk](https://raw.githubusercontent.com/userxx09-afk/prod/main/bcn/BCN.apk) (version 1.4, Android 8 or newer). Open the download to install; if Android asks, allow installs from your browser. After that, the app updates itself from the public prod repo: it reads `bcn/latest.json` there (copied from this repo's `downloads/`) and offers the new APK.
 
 See [android/README.md](android/README.md) to build it. `android\build.ps1` builds a signed APK and copies
 it to the server, where the Alerts page offers it (`/bcn.apk`) to Android phones.
