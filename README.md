@@ -62,8 +62,25 @@ needs a sign-in, so other apps on the home network (GarysTV) keep working.
 
 ## Server
 
-See [server/README.md](server/README.md). On Ubuntu: `sudo bash server/deploy/install.sh`
-(runs on port 8090 as a systemd service), or `docker compose up -d --build` in `server/`.
+See [server/README.md](server/README.md). Both builds are made by GitHub Actions on every push to
+`main` that touches `server/`, and published to the public prod repo:
+
+| | Download | Workflow |
+|---|---|---|
+| Windows | [ArloKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe) | `.github/workflows/windows-installer.yml` |
+| Ubuntu | [ArloKeeper-linux.tar.gz](https://github.com/userxx09-afk/prod/releases/download/arlo-ubuntu/ArloKeeper-linux.tar.gz) | `.github/workflows/ubuntu-package.yml` |
+
+**On Ubuntu** (22.04/24.04), install or update, leaving nothing behind in /tmp:
+
+```
+cd /tmp && curl -fLO https://github.com/userxx09-afk/prod/releases/download/arlo-ubuntu/ArloKeeper-linux.tar.gz
+tar xzf ArloKeeper-linux.tar.gz && sudo bash arlo-keeper/deploy/install.sh
+rm -rf arlo-keeper ArloKeeper-linux.tar.gz
+```
+
+It runs as the systemd service `arlo-keeper` on port 8090; data is in `/var/lib/arlo-keeper`,
+settings in `/etc/arlo-keeper/arlo-keeper.env`. Updates never touch either. Or
+`docker compose up -d --build` in `server/`.
 
 **On Windows:** download [ArloKeeper-Setup.exe](https://github.com/userxx09-afk/prod/releases/download/arlo-windows-installer/ArloKeeper-Setup.exe)
 and run it (if Windows says it protected your PC: **More info → Run anyway**). It brings its own
@@ -76,6 +93,33 @@ uninstalling. To update, run the newest setup over the old one. GitHub Actions b
 (`.github/workflows/windows-installer.yml`, files in `server/windows/`) whenever the server changes.
 
 Only one Arlo Keeper can use an Arlo login at a time: Arlo signs out the other one.
+
+## DNS and addresses
+
+`ban.tapper.co` is a Cloudflare DNS record (zone tapper.co) pointing at a **Cloudflare Tunnel**,
+not at an IP address. cloudflared on the Arlo Keeper server carries it to `http://localhost:8090`.
+
+- **Getting it right after a move:** on the new server, **Alerts → Move to another server →
+  Point ban.tapper.co here** (needs a Cloudflare API token with Account · Cloudflare Tunnel · Edit
+  and Zone · DNS · Edit). It makes the tunnel, changes the `ban` CNAME to
+  `<tunnel-id>.cfargotunnel.com` (proxied, orange cloud), and installs cloudflared as a service.
+- **Check it:** `nslookup ban.tapper.co` gives Cloudflare addresses (104.21.x / 172.67.x), never a
+  home IP. `https://ban.tapper.co` shows the sign-in page from outside. In the Cloudflare dashboard,
+  Zero Trust → Networks → Tunnels shows the tunnel **Healthy**, with the public hostname
+  `ban.tapper.co → http://localhost:8090`. Only one tunnel may carry the name: remove it from the
+  old server's tunnel (or its `config.yml` on tapper) so the two don't take turns.
+- **No port on the Cloudflare name.** Cloudflare only passes the web ports, so
+  `http://ban.tapper.co:8090` never answers. Use `https://ban.tapper.co`.
+- **Not for motion pop-ups.** Arlo Keeper pushes motion to GarysTV at the address it was asked
+  from, and through the tunnel that's only Cloudflare. A GarysTV that needs pop-ups uses the home
+  or VPN address: `http://<server>:8090` on the home network, or the TapperVPN address (tapper is
+  `http://100.64.0.2:8090`). Those need no password.
+
+**GarysTV through ban.tapper.co** (clips only): Settings › Arlo › address
+`https://name:password@ban.tapper.co`, with the away-from-home name and password from
+**Alerts → Away from home**. GarysTV sends them with every request (HTTP Basic); characters like
+`@` or `:` in the password are written `%40` and `%3A`. Eight wrong tries lock that address out
+for 15 minutes.
 
 ## Android app
 

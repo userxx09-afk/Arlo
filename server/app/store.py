@@ -78,11 +78,14 @@ def get(key):
         return dict(r) if r else None
 
 
-def query(camera_id=None, day=None, starred=False, limit=200, offset=0):
+def query(camera_id=None, day=None, starred=False, limit=200, offset=0, camera_ids=None):
     sql, args = "SELECT * FROM clips WHERE 1=1", []
     if camera_id:
         sql += " AND camera_id=?"
         args.append(camera_id)
+    if camera_ids:  # one account's cameras
+        sql += f" AND camera_id IN ({','.join('?' * len(camera_ids))})"
+        args += list(camera_ids)
     if day:  # YYYY-MM-DD in local time
         start = int(time.mktime(time.strptime(day, "%Y-%m-%d")) * 1000)
         sql += " AND created_ms>=? AND created_ms<?"

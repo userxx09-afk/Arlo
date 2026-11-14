@@ -7,6 +7,7 @@ visits are turned away entirely, so a new tunnel never exposes the cameras by ac
 
 Signing in sets a cookie that lasts a year, so the phone app signs in once.
 """
+import hashlib
 import secrets
 import threading
 import time
@@ -19,6 +20,8 @@ KEY = "remote_access"
 MAX_FAILS = 8              # wrong passwords from one address before it has to wait
 LOCK_SECONDS = 15 * 60
 _fails = {}
+_ok_cache = {}          # right Basic sign-ins -> expiry, so apps that send one with every request stay fast
+CACHE_SECONDS = 10 * 60
 _lock = threading.Lock()
 
 
@@ -76,3 +79,21 @@ def check(ip, user, password):
             n, _ = _fails.get(ip, (0, 0))
             _fails[ip] = (n + 1, time.time() + LOCK_SECONDS)
     return ok
+
+
+def check_basic(ip, user, password):
+    """HTTP Basic sign-in: an app with the name and password in the address, like GarysTV's
+    https://name:password@ban.tapper.co. Same name, password and lockout as the sign-in page.
+    A right answer is remembered for a few minutes, since apps send it with every request."""
+    key = hashlib.sha256(f"{(user or '').strip().lower()}\0{password or ''}\0{stamp()}".encode()).hexdigest()
+    now = time.time()
+    with _lock:
+        if _ok_cache.get(key, 0) > now:
+            return True
+    if not check(ip, user, password):
+        return False
+    with _lock:
+        for k in [k for k, t in _ok_cache.items() if t <= now]:
+            _ok_cache.pop(k, None)
+        _ok_cache[key] = now + CACHE_SECONDS
+    return True
