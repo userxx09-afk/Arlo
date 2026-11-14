@@ -116,13 +116,19 @@
 <script>
   // Refresh when an account's sign-in moves on (code needed, connected, failed), unless typing.
   (function () {
-    let last = null;
+    // Starts from what this page shows, so a code request that came in while it loaded
+    // (Arlo and Blink ask within a second or two of signing in) still brings up the code box.
+    let last = JSON.stringify({{ state|tojson }});
+    const codeShown = {{ state|selectattr("waiting_for_code")|map(attribute="id")|list|tojson }};
     setInterval(async () => {
       try {
-        const s = await (await fetch("{{ url_for('connect_state') }}")).json();
+        const r = await fetch("{{ url_for('connect_state') }}", { cache: "no-store", credentials: "same-origin" });
+        if (!r.ok) return;
+        const s = await r.json();
         const key = JSON.stringify(s);
-        const typing = document.activeElement && document.activeElement.matches("input");
-        if (last !== null && key !== last && (!typing || s.some((a) => a.waiting_for_code))) location.reload();
+        const typing = document.activeElement && document.activeElement.matches("input") && document.activeElement.value;
+        const newCode = s.some((a) => a.waiting_for_code && !codeShown.includes(a.id));
+        if (key !== last && (!typing || newCode)) location.reload();
         last = key;
       } catch (e) {}
     }, 2000);

@@ -257,12 +257,13 @@
       .map((m) => `<span class="mode ${/arm/i.test(m) ? "armed" : ""}" title="Arlo mode. Cameras only report motion when armed.">${esc(m)}</span>`).join("");
     renderPrompts(s); renderCams(); renderChips();
     clearTimeout(loadStatus.t);
-    loadStatus.t = setTimeout(loadStatus, st.cams.some((c) => c.capturing || c.viewing || c.motion) ? 3000 : 15000);
+    loadStatus.t = setTimeout(loadStatus, st.cams.some((c) => c.capturing || c.viewing || c.motion) || s.signing_in || (s.waiting_for_code || []).length ? 3000 : 15000);
   }
 
   function renderPrompts(s) {
     let html = "";
-    if (s.needs_login && !s.connected) html += `<div class="prompt"><h2>Connect your Arlo account</h2><p>${s.error ? "Sign-in failed: " + esc(s.error) : "Sign in once so new recordings can be saved here."}</p><a class="btn primary" href="/connect">Sign in to Arlo</a></div>`;
+    if ((s.waiting_for_code || []).length) html += `<div class="prompt"><h2>Enter the verification code</h2><p>${esc(s.waiting_for_code.join(", "))} sent a code by email or text.</p><a class="btn primary" href="/connect">Enter the code</a></div>`;
+    else if (s.needs_login && !s.connected) html += `<div class="prompt"><h2>Connect your Arlo account</h2><p>${s.error ? "Sign-in failed: " + esc(s.error) : "Sign in once so new recordings can be saved here."}</p><a class="btn primary" href="/connect">Sign in to Arlo</a></div>`;
     else if (s.signing_in) html += `<div class="prompt"><h2>Signing in to Arlo…</h2><p><a href="/connect" style="text-decoration:underline">Open the sign-in page</a> if Arlo asks for a code.</p></div>`;
     if (s.alerts_need_setup && !window.BANApp) html += `<div class="prompt"><h2>Who should get a text when a camera sees motion?</h2>
       <p>Enter a phone number, or install the BAN app on your phone for notifications.</p>

@@ -38,6 +38,15 @@ def _outside_needs_login():
         return None
     if remote.enabled() and session.get("remote") == remote.stamp():
         return None
+    # Apps (GarysTV, ffmpeg) can't fill in the sign-in page: they send the name and password
+    # with every request instead (https://name:password@ban.tapper.co).
+    auth = request.authorization
+    if auth and auth.type == "basic" and remote.enabled():
+        ip = remote.client_ip(request)
+        if remote.check_basic(ip, auth.username, auth.password):
+            return None
+        return Response("Too many wrong tries. Wait 15 minutes and try again." if remote.locked(ip)
+                        else "That name and password don't match the away-from-home sign-in.", 401)
     wants_page = request.method == "GET" and not request.path.startswith(("/api/", "/media/", "/live/", "/ban.apk", "/photo", "/cameras.json", "/health"))
     if wants_page:
         return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
@@ -140,7 +149,27 @@ def api_cameras():
     cams = recorder.cameras_view() if recorder else []
     return jsonify({"connected": bool(s.get("connected")), "modes": recorder.modes() if recorder else {},
                     "cameras": [{k: c.get(k) for k in ("id", "name", "model", "battery", "unavailable",
-                                                       "last_motion", "last_clip")} for c in cams]})
+                                                       "last_motion", "last_clip", "account")}
+                                | {"brand": c.get("brand") or "arlo"} for c in cams],
+                    "accounts": _accounts_list()})
+
+
+def _accounts_list():
+    """Every Arlo and Blink account, for GarysTV's filter by account."""
+    if not recorder:
+        return []
+    return ([{"username": a["username"], "brand": "arlo", "connected": a["connected"],
+              "waiting_for_code": a["waiting_for_code"]} for a in recorder.accounts_view()]
+            + [{"username": a["username"], "brand": "blink", "connected": a["connected"],
+                "waiting_for_code": a["waiting_for_code"]} for a in recorder.blink.accounts_view()])
+
+
+def _account_cameras(account):
+    """The camera ids on one account: "arlo:email", "blink:email", or just the email."""
+    brand, user = account.split(":", 1) if account.startswith(("arlo:", "blink:")) else ("", account)
+    cams = recorder.cameras_view() if recorder else []
+    return [c["id"] for c in cams if (c.get("account") or "").lower() == user.lower()
+            and (not brand or (c.get("brand") or "arlo") == brand)]
 
 
 def _subscriber_url():
@@ -156,6 +185,9 @@ def _subscriber_url():
 @app.post("/api/subscribe")
 @_auth
 def api_subscribe():
+    if remote.is_remote(request) and not (request.get_json(silent=True) or {}).get("url"):
+        return jsonify({"ok": False, "error": "Connected through ban.tapper.co, which works for clips, but motion pop-ups "
+                        "can't come back that way. For pop-ups use Arlo Keeper's home or VPN address (like http://100.64.0.2:8090)."}), 400
     url = _subscriber_url()
     garystv.subscribe(url)
     return jsonify({"ok": True, "url": url})
@@ -225,12 +257,21 @@ def active_numbers_or_channel(s):
 
 
 # --- Arlo accounts and sign-in ------------------------------------------------
+def _connect_state(accs=None):
+    """Where each account's sign-in is. The Arlo page reloads itself when this changes."""
+    if accs is None:
+        accs = (recorder.accounts_view() + recorder.blink.accounts_view()) if recorder else []
+    return [{k: a.get(k) for k in ("id", "connected", "signing_in", "waiting_for_code", "error")} for a in accs]
+
+
 @app.get("/connect")
 @_auth
 def connect():
     from . import blink
-    return render_template("connect.html", accounts=recorder.accounts_view() if recorder else [],
-                           blink_accounts=recorder.blink.accounts_view() if recorder else [],
+    accounts = recorder.accounts_view() if recorder else []
+    blink_accounts = recorder.blink.accounts_view() if recorder else []
+    return render_template("connect.html", accounts=accounts, blink_accounts=blink_accounts,
+                           state=_connect_state(accounts + blink_accounts),
                            blink_available=blink.AVAILABLE, blink_poll=blink.POLL_SECONDS)
 
 
@@ -268,8 +309,7 @@ def connect_signout(aid):
 @app.get("/connect/state")
 @_auth
 def connect_state():
-    accs = (recorder.accounts_view() + recorder.blink.accounts_view()) if recorder else []
-    return jsonify([{k: a[k] for k in ("id", "connected", "signing_in", "waiting_for_code", "error")} for a in accs])
+    return jsonify(_connect_state())
 
 
 @app.post("/connect/blink")
@@ -479,8 +519,11 @@ def api_clips():
         offset = max(int(a.get("offset", 0)), 0)
     except ValueError:
         abort(400)
+    cams = _account_cameras(a["account"]) if a.get("account") else None
+    if cams is not None and not cams:
+        return jsonify([])
     return jsonify(store.query(a.get("camera") or None, a.get("day") or None, a.get("starred") == "1",
-                               limit=limit, offset=offset))
+                               limit=limit, offset=offset, camera_ids=cams))
 
 
 # --- BAN (the web page and the phone app) -------------------------------------
@@ -509,6 +552,8 @@ def api_status():
     s = recorder.status if recorder else {}
     return jsonify({"connected": bool(s.get("connected")), "signing_in": bool(s.get("signing_in")),
                     "needs_login": bool(s.get("needs_login")), "error": s.get("error"),
+                    "waiting_for_code": [f'{a["brand"].capitalize()} ({a["username"]})' for a in _accounts_list()
+                                         if a["waiting_for_code"]],
                     "last_sweep": s.get("last_sweep"), "modes": recorder.modes() if recorder else {},
                     "stats": store.stats(), "cameras": _cams_full(),
                     "clip_cameras": store.cameras(),
