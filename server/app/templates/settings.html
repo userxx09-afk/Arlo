@@ -75,6 +75,22 @@
   </form>
 </section>
 
+<section class="panel" id="storage">
+  <h2>💾 Storage</h2>
+  <p>How much space clips may use, and what happens when it's used up. ★ Starred (saved) clips are never deleted.</p>
+  {% set gb = 1024 ** 3 %}
+  <p class="muted" style="margin-top:-6px">Using {{ '%.1f' % (storage.used_bytes / gb) }} GB{% if storage.max_gb %} of {{ storage.max_gb }} GB{% endif %}{% if storage.disk_free_bytes is not none %} · {{ '%.0f' % (storage.disk_free_bytes / gb) }} GB free on the disk{% endif %}.
+    {% if storage.full and not storage.saving %}<b style="color:var(--bad,#f66)">Full: new clips aren't being saved.</b>{% elif storage.full %}Full: the oldest clips are being replaced.{% endif %}</p>
+  <form method="post" action="{{ url_for('storage_settings') }}">
+    <div class="field"><label>Space for clips (GB, 0 = until the disk is nearly full)</label><input type="number" name="max_gb" min="0" value="{{ storage.max_gb }}"></div>
+    <div class="field"><label>Delete clips older than (days, 0 = never)</label><input type="number" name="keep_days" min="0" value="{{ storage.keep_days }}"></div>
+    <div class="field"><label>When the space is used up</label>
+      <label><input type="radio" name="when_full" value="overwrite" {{ 'checked' if storage.when_full == 'overwrite' }}> Replace the oldest clips (keep recording)</label><br>
+      <label><input type="radio" name="when_full" value="stop" {{ 'checked' if storage.when_full == 'stop' }}> Stop saving new clips (motion alerts still come)</label></div>
+    <div class="actions"><button class="primary">Save</button></div>
+  </form>
+</section>
+
 {% if not outside %}
 <section class="panel">
   <h2>🚚 Move to another server</h2>

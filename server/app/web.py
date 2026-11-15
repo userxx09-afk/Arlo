@@ -406,7 +406,7 @@ def ipcams_find():
 @_auth
 def settings():
     return render_template("settings.html", s=notify.current(), sms_ready=notify.sms_ready(),
-                           results=None, remote=remote.settings(), remote_on=remote.enabled(),
+                           results=None, storage=store.storage_state(), remote=remote.settings(), remote_on=remote.enabled(),
                            outside=remote.is_remote(request))
 
 
@@ -469,6 +469,19 @@ def _apply_form():
     notify.save(s)
 
 
+@app.post("/settings/storage")
+@_auth
+def storage_settings():
+    f = request.form
+    try:
+        store.set_storage_rules(f.get("max_gb") or 0, f.get("keep_days") or 0, f.get("when_full") or "overwrite")
+        store.cleanup()
+        flash("Saved.", "ok")
+    except ValueError:
+        flash("Enter whole numbers.", "error")
+    return redirect(url_for("settings") + "#storage")
+
+
 @app.post("/settings/remote")
 @_auth
 def remote_settings():
@@ -500,7 +513,7 @@ def save_settings():
 def test_alert():
     _apply_form()  # test what's on screen
     return render_template("settings.html", s=notify.current(), sms_ready=notify.sms_ready(),
-                           results=notify.send_test(), remote=remote.settings(), remote_on=remote.enabled(),
+                           results=notify.send_test(), storage=store.storage_state(), remote=remote.settings(), remote_on=remote.enabled(),
                            outside=remote.is_remote(request))
 
 
@@ -609,7 +622,7 @@ def api_status():
                     "waiting_for_code": [f'{a["brand"].capitalize()} ({a["username"]})' for a in _accounts_list()
                                          if a["waiting_for_code"]],
                     "last_sweep": s.get("last_sweep"), "modes": recorder.modes() if recorder else {},
-                    "stats": store.stats(), "cameras": _cams_full(),
+                    "stats": store.stats(), "storage": store.storage_state(), "cameras": _cams_full(),
                     "clip_cameras": store.cameras(),
                     "alerts_need_setup": not active_numbers_or_channel(notify.current()),
                     "has_photo": True, "custom_photo": os.path.exists(_photo_path()),
@@ -631,6 +644,25 @@ def api_sync():
         import threading
         threading.Thread(target=recorder.sweep, daemon=True).start()
     return jsonify({"ok": True})
+
+
+# Storage rules: GarysTV Settings > Cameras reads and changes them here.
+@app.get("/api/storage")
+@_auth
+def api_storage():
+    return jsonify(store.storage_state())
+
+
+@app.post("/api/storage")
+@_auth
+def api_storage_set():
+    b = request.get_json(silent=True) or {}
+    try:
+        store.set_storage_rules(b.get("max_gb"), b.get("keep_days"), b.get("when_full"))
+    except (TypeError, ValueError):
+        abort(400)
+    store.cleanup()
+    return jsonify(store.storage_state())
 
 
 @app.post("/api/clip/<path:key>/star")
