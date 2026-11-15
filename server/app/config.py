@@ -27,7 +27,7 @@ TFA_PASSWORD = os.environ.get("TFA_PASSWORD") or None
 
 # --- Storage ----------------------------------------------------------------
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
-CLIPS_DIR = os.path.join(DATA_DIR, "clips")
+CLIPS_DIR = os.environ.get("CLIPS_DIR") or os.path.join(DATA_DIR, "clips")   # can be another drive (Storage)
 STATE_DIR = os.path.join(DATA_DIR, "state")
 DB_PATH = os.path.join(DATA_DIR, "clips.db")
 

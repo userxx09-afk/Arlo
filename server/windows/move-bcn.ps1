@@ -11,11 +11,14 @@ Camera Keeper installed and running (CameraKeeper-Setup.exe); nothing has to be 
                            3. only then turns BCN off on tapper: service disabled, recording marked
                               "moved" (so it never signs in to Arlo again there), selfheal stops
                               watching it. Clips stay on tapper until you delete them.
-  .\move-bcn.ps1 import    4. uploads the .zip to the new server; it restarts and imports it
+  .\move-bcn.ps1 import    4. asks where the new server keeps clips (its drives are listed; or pass
+                              -ClipsFolder 'D:\BCN Clips'), then uploads the .zip; it restarts and
+                              imports it
                            5. waits until the new server is signed in to the cameras
                            6. points bcn.tapper.co (and the old ban.tapper.co) at the new server
                               with a Cloudflare API token (asked for; used once, not saved)
-                           7. points GarysTV on tapper at the new server
+                           7. points GarysTV at the new server: tapper's, and this PC's if it used
+                              tapper's BCN
                            8. checks https://bcn.tapper.co from outside, then deletes the .zip
                               (it holds passwords; -KeepFile keeps it)
   .\move-bcn.ps1 all       export, then import
@@ -32,6 +35,7 @@ param(
     [string]$File,
     [string]$Hostname = 'bcn.tapper.co',
     [string]$CloudflareToken,
+    [string]$ClipsFolder,
     [switch]$NoClips,
     [switch]$KeepFile,
     [switch]$Yes
@@ -135,6 +139,29 @@ fi
 '@
 
 # --- helpers --------------------------------------------------------------------------------
+$OldHosts = @(($From -split '@')[-1], '10.0.0.156', '10.0.0.225', 'tapper')   # tapper's addresses
+
+function Set-LocalGarysTV([string]$Url) {
+    # GarysTV on the PC running this script (Fort Madison's, for one), if it uses tapper's BCN.
+    $f = Join-Path $env:APPDATA 'garystv\data\settings.json'
+    if (-not (Test-Path $f)) { return }
+    $j = Get-Content $f -Raw | ConvertFrom-Json
+    if (-not $j.arlo -or -not $j.arlo.enabled) { return }
+    $cur = "$($j.arlo.url)".TrimEnd('/')
+    if ($cur -eq $Url) { Ok "GarysTV on this PC already uses $Url."; return }
+    if ($cur -match '(bcn|ban)\.tapper\.co') { Ok "GarysTV on this PC uses $cur, which follows the move by itself."; return }
+    $fromOld = $OldHosts + ($To -replace '^https?://', '' -replace ':.*$', '')
+    if (-not ($fromOld | Where-Object { $cur -match [regex]::Escape($_) })) {
+        Warn "GarysTV on this PC uses $cur; leaving it alone."; return
+    }
+    $j.arlo.url = $Url
+    try {
+        Invoke-WebRequest http://127.0.0.1:5480/api/settings -Method Put -ContentType 'application/json' `
+            -Body (@{ arlo = $j.arlo } | ConvertTo-Json -Depth 5 -Compress) -UseBasicParsing -TimeoutSec 10 | Out-Null
+        Ok "GarysTV on this PC ($env:COMPUTERNAME): camera server $cur -> $Url"
+    } catch { Warn "GarysTV on this PC isn't answering; set Settings > Cameras > Camera Keeper address to $Url by hand." }
+}
+
 function Get-Json([string]$Url, [int]$Timeout = 10) {
     try { return Invoke-RestMethod $Url -TimeoutSec $Timeout -UseBasicParsing } catch { return $null }
 }
@@ -193,6 +220,55 @@ function Invoke-Export {
     return $local
 }
 
+# --- where the new server keeps clips ---------------------------------------------------------------
+function Select-ClipsFolder([long]$Need) {
+    $loc = Get-Json "$To/api/storage/location"
+    if (-not $loc) {
+        if ($ClipsFolder) { throw "Camera Keeper at $To is too old to choose a clips folder. Install the newest CameraKeeper-Setup.exe there first." }
+        Warn "Camera Keeper at $To can't choose a clips folder (older version); clips go to its data folder."
+        return
+    }
+    $gb = { param($b) if ($null -eq $b) { '?' } else { '{0:N0} GB' -f ($b / 1GB) } }
+    $want = $ClipsFolder
+    if (-not $want -and -not $Yes) {
+        Write-Host ("   Clips on the new server go to: {0}  ({1} free; the export is {2})" -f $loc.clips_dir, (& $gb $loc.free), (& $gb $Need))
+        if ($loc.can_change) {
+            $i = 0
+            foreach ($d in $loc.drives) { $i++; Write-Host ("     {0}. {1}  {2} free of {3}" -f $i, $d.path, (& $gb $d.free), (& $gb $d.total)) }
+            $ans = (Read-Host '   Enter to keep it, a number to use that drive, or type a folder').Trim().Trim('"')
+            if ($ans -match '^\d+$' -and [int]$ans -ge 1 -and [int]$ans -le $loc.drives.Count) {
+                $root = $loc.drives[[int]$ans - 1].path
+                $want = if ($root -match '^[A-Za-z]:\\$') { $root + 'BCN Clips' } else { $root.TrimEnd('/') + '/bcn-clips' }
+            } elseif ($ans) { $want = $ans }
+        }
+    }
+    if (-not $want -or $want.TrimEnd('\', '/') -eq $loc.clips_dir) {
+        if ($loc.free -and $loc.free -lt $Need * 1.1) { Warn "Only $(& $gb $loc.free) free there for $(& $gb $Need) of export." }
+        return
+    }
+    if (-not $loc.can_change) { throw "The clips folder on $To is set in its env file (CLIPS_DIR); change it there." }
+    Write-Host "   Switching the clips folder to $want ..."
+    try {
+        $r = Invoke-RestMethod "$To/api/storage/location" -Method Post -ContentType 'application/json' `
+            -Body (@{ path = $want } | ConvertTo-Json -Compress) -TimeoutSec 30 -UseBasicParsing
+    } catch {
+        $msg = $_.ErrorDetails.Message; try { $msg = ($msg | ConvertFrom-Json).error } catch { }
+        throw "The new server refused that folder: $msg"
+    }
+    $target = $r.move.to
+    $deadline = (Get-Date).AddMinutes(20)
+    Start-Sleep 3
+    while ((Get-Date) -lt $deadline) {
+        $l = Get-Json "$To/api/storage/location" 5
+        if ($l -and $l.clips_dir -eq $target -and -not $l.move.moving) {
+            Ok ("Clips folder on the new server: {0} ({1} free)" -f $l.clips_dir, (& $gb $l.free)); return
+        }
+        if ($l -and $l.move.error) { throw "Switching the clips folder failed: $($l.move.error)" }
+        Start-Sleep 3
+    }
+    throw "The clips folder switch didn't finish; check $To/settings#storage."
+}
+
 # --- import ----------------------------------------------------------------------------------------
 function Invoke-Import([string]$Path) {
     if (-not $Path) {
@@ -209,6 +285,8 @@ function Invoke-Import([string]$Path) {
         $a = Read-Host "   $To already has accounts or $($st.stats.count) clips. Its settings and sign-ins get replaced. Continue? (y/N)"
         if ($a -notmatch '^[yY]') { throw 'Stopped; nothing was imported.' }
     }
+
+    Select-ClipsFolder (Get-Item $Path).Length
 
     Write-Host ("   Uploading {0:N2} GB ({1} clips)..." -f ((Get-Item $Path).Length / 1GB), $t.Manifest.clips)
     $resp = Join-Path $env:TEMP 'bcn-import-response.json'
@@ -259,6 +337,7 @@ function Invoke-Import([string]$Path) {
 
     Say 'GarysTV'
     Remote $GarysScript @($To) | Out-Null
+    Set-LocalGarysTV $To
 
     Say 'Checking from outside'
     $okOutside = $false
@@ -289,6 +368,7 @@ switch ($Step) {
         Say 'Turning BCN back on at tapper'
         Remote $UndoScript | Out-Null
         Remote $GarysScript @('http://127.0.0.1:8090') | Out-Null
+        Set-LocalGarysTV ('http://' + ($From -split '@')[-1] + ':8090')
         Warn "If bcn.tapper.co was already pointed at the new server, point it back from http://tapper:8090/move."
     }
 }

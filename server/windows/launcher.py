@@ -146,7 +146,8 @@ def main():
     flags = 0x08000000 if os.name == "nt" else 0              # CREATE_NO_WINDOW
 
     while True:
-        log.note("starting Camera Keeper (data in %s, port %s)" % (env["DATA_DIR"], env["WEB_PORT"]))
+        env.update(read_settings(SETTINGS))   # again each start: the app can change it (clips folder)
+        log.note("starting Camera Keeper (data in %s, clips in %s, port %s)" % (env["DATA_DIR"], env.get("CLIPS_DIR") or os.path.join(env["DATA_DIR"], "clips"), env["WEB_PORT"]))
         proc = subprocess.Popen([py, "-m", "app.main"], cwd=HERE, env=env,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, creationflags=flags)

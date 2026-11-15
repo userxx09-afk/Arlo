@@ -2,7 +2,7 @@
 import logging
 import threading
 
-from . import config, migrate, store, web
+from . import clips_location, config, migrate, store, web
 from .accounts import Fleet
 
 
@@ -11,6 +11,7 @@ def main():
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     log = logging.getLogger("main")
     migrate.apply_pending()  # an export uploaded on the Move page, applied before anything opens the database
+    clips_location.finish_move()   # clips moved to another folder: remove the old copies
     store.init()
     web.init_secret()
 

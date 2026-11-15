@@ -964,3 +964,28 @@ def move_retire():
         flash("Recording is off here. Camera Keeper restarts in a moment without signing in to Arlo.", "ok")
     migrate.restart_soon()
     return redirect(url_for("move"))
+
+
+# --- where clips are kept (Storage on the Alerts page; the move routine's -ClipsFolder) ----------
+@app.get("/api/storage/location")
+@_auth
+@_home_only
+def api_clips_location():
+    from . import clips_location
+    return jsonify(clips_location.state())
+
+
+@app.post("/api/storage/location")
+@_auth
+@_home_only
+def api_clips_location_set():
+    """{"path": "D:\\BCN clips"}: copies the clips there, switches to it and restarts."""
+    from . import clips_location, migrate
+    b = request.get_json(silent=True)
+    if not isinstance(b, dict) or not str(b.get("path") or "").strip():
+        return jsonify({"ok": False, "error": "Send JSON {\"path\": ...}."}), 400
+    try:
+        st = clips_location.start_move(str(b["path"]), migrate.restart_soon)
+    except (ValueError, OSError) as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return jsonify({"ok": True, **st})

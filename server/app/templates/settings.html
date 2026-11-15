@@ -89,6 +89,59 @@
       <label><input type="radio" name="when_full" value="stop" {{ 'checked' if storage.when_full == 'stop' }}> Stop saving new clips (motion alerts still come)</label></div>
     <div class="actions"><button class="primary">Save</button></div>
   </form>
+  {% if not outside %}
+  <div id="clips-where" style="margin-top:16px;border-top:1px solid var(--line,#333);padding-top:12px">
+    <h3 style="margin:0 0 6px;font-size:16px">Where clips are kept</h3>
+    <p class="muted" id="cw-now">Loading…</p>
+    <div id="cw-change" hidden>
+      <div class="field"><label>Drive</label><select id="cw-drive"></select></div>
+      <div class="field"><label>Folder</label><input type="text" id="cw-path" autocomplete="off"></div>
+      <div class="actions"><button type="button" class="primary" id="cw-go">Move clips here</button></div>
+      <p class="muted">Copies every clip to the new folder, then Camera Keeper restarts using it and removes the old copies. Recording continues during the copy.</p>
+    </div>
+    <p class="muted" id="cw-fixed" hidden>On this server the clips folder is set in the env file (CLIPS_DIR).</p>
+    <p id="cw-msg"></p>
+  </div>
+  <script>
+  (function () {
+    const $ = (id) => document.getElementById(id), gb = (b) => b == null ? "?" : (b / 1e9).toFixed(1) + " GB";
+    let st = null, poll = null;
+    function render() {
+      $("cw-now").textContent = st.clips_dir + " · " + gb(st.used_bytes) + " of clips · " + gb(st.free) + " free on that drive";
+      const m = st.move || {};
+      if (m.moving && !m.error) {
+        $("cw-msg").textContent = "Copying to " + m.to + ": " + gb(m.copied_bytes) + " of " + gb(m.total_bytes) + (m.done ? " — restarting…" : "");
+        $("cw-go").disabled = true;
+      } else if (m.error) { $("cw-msg").textContent = "The move failed: " + m.error; }
+      if (!st.can_change) { $("cw-fixed").hidden = false; return; }
+      $("cw-change").hidden = false;
+      const sel = $("cw-drive");
+      if (!sel.options.length) {
+        st.drives.forEach((d) => { const o = document.createElement("option"); o.value = d.path;
+          o.textContent = d.path + " — " + gb(d.free) + " free of " + gb(d.total); sel.appendChild(o); });
+        const cur = st.drives.find((d) => st.clips_dir.toLowerCase().startsWith(d.path.toLowerCase()));
+        if (cur) sel.value = cur.path;
+        sel.onchange = () => { const p = sel.value; $("cw-path").value = /^[A-Za-z]:\\$/.test(p) ? p + "BCN Clips" : p.replace(/\/$/, "") + "/bcn-clips"; };
+        $("cw-path").value = st.clips_dir;
+      }
+    }
+    async function load() {
+      try { st = await (await fetch("/api/storage/location", { cache: "no-store" })).json(); render(); }
+      catch (e) { if (poll) { $("cw-msg").textContent = "Restarting with the new folder…"; } }
+    }
+    $("cw-go").onclick = async () => {
+      const path = $("cw-path").value.trim();
+      if (!path || !confirm("Move all clips to " + path + "?\nCamera Keeper restarts when the copy is done.")) return;
+      const r = await fetch("/api/storage/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) });
+      const j = await r.json();
+      if (!j.ok) { $("cw-msg").textContent = j.error; return; }
+      st = j; render();
+      poll = setInterval(async () => { await load(); if (st && st.clips_dir.toLowerCase() === path.toLowerCase().replace(/[\\/]+$/, "") && !(st.move || {}).moving) { clearInterval(poll); $("cw-msg").textContent = "✅ Clips are now in " + st.clips_dir + "."; } }, 2000);
+    };
+    load();
+  })();
+  </script>
+  {% endif %}
 </section>
 
 {% if not outside %}
