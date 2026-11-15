@@ -88,6 +88,25 @@ Command line instead (handy for very big exports): Ubuntu `sudo bash server/depl
 If the old tunnel was set up from a config file on tapper (not in the Cloudflare dashboard), the DNS
 move still sends bcn.tapper.co to the new server; remove the ban/bcn lines from tapper's config.yml to tidy up.
 
+**All of it in one go, from a PC on the VPN:** `server/windows/move-bcn.ps1` (PowerShell; needs SSH
+key access to tapper and Camera Keeper installed on the new server):
+
+```powershell
+.\move-bcn.ps1 export    # stop BCN on tapper, export, download + verify, then turn tapper's copy off
+.\move-bcn.ps1 import    # pick the clips folder there, upload, wait for the import and the Arlo
+                         # sign-in, point bcn.tapper.co there, repoint GarysTV, check, delete the zip
+.\move-bcn.ps1 all       # both;  .\move-bcn.ps1 undo  turns tapper's copy back on
+```
+
+Defaults: from `claude@100.64.0.2` (tapper) to `http://100.64.0.8:8090`; `-To`, `-ClipsFolder
+'D:\BCN Clips'`, `-CloudflareToken`, `-NoClips`, `-KeepFile` change them.
+
+## Where clips are kept
+
+**Alerts → Storage → Where clips are kept** moves the clips to another folder or drive (Windows):
+it copies them, saves `CLIPS_DIR` in the settings file, restarts and removes the old copies. The
+database and settings stay in the data folder. On Ubuntu/Docker set `CLIPS_DIR` in the env file.
+
 ## Away from home
 
 Remote access goes through a Cloudflare Tunnel (no port forwarding). Requests that arrive through

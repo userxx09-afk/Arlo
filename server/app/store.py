@@ -169,7 +169,7 @@ def set_storage_rules(max_gb=None, keep_days=None, when_full=None):
 
 def _disk_free():
     try:
-        return shutil.disk_usage(config.DATA_DIR).free
+        return shutil.disk_usage(config.CLIPS_DIR if os.path.isdir(config.CLIPS_DIR) else config.DATA_DIR).free
     except OSError:
         return None
 
