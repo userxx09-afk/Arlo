@@ -36,6 +36,7 @@ param(
     [string]$Hostname = 'bcn.tapper.co',
     [string]$CloudflareToken,
     [string]$ClipsFolder,
+    [switch]$NoTunnel,      # leave bcn.tapper.co alone (switch it later on the new server's Move page)
     [switch]$NoClips,
     [switch]$KeepFile,
     [switch]$Yes
@@ -320,18 +321,20 @@ function Invoke-Import([string]$Path) {
 
     Say "Pointing $Hostname at the new server"
     $token = $CloudflareToken
-    if (-not $token) {
+    if ($NoTunnel) {
+        Warn "Left as it is (-NoTunnel). Switch it later on $To/move (section 4)."
+    } elseif (-not $token) {
         $sec = Read-Host "   Cloudflare API token (Cloudflare Tunnel: Edit and DNS: Edit; Enter to skip)" -AsSecureString
         $token = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
     }
-    if ($token) {
+    if ($token -and -not $NoTunnel) {
         $html = & curl.exe -sS -m 180 --data-urlencode "api_token=$token" --data-urlencode "hostname=$Hostname" "$To/move/tunnel"
         $token = $null
         $page = $html -join "`n"
         $err = [regex]::Match($page, '<div class="flash error">(.*?)</div>', 'Singleline')
         if ($err.Success) { Warn ("Cloudflare: " + [Net.WebUtility]::HtmlDecode($err.Groups[1].Value.Trim())) }
         [regex]::Matches($page, '<li>(.*?)</li>') | ForEach-Object { Ok ([Net.WebUtility]::HtmlDecode($_.Groups[1].Value)) }
-    } else {
+    } elseif (-not $NoTunnel) {
         Warn "Skipped. Do it later on $To/move (section 4)."
     }
 
