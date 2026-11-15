@@ -471,6 +471,8 @@ class Hub:
 
     # --- files (run in a worker thread) ---------------------------------------------
     def save_clip(self, cid, name, started, data):
+        if not store.room_for_clip():          # storage full and set to stop: no clip, the alert still goes
+            return None
         from .capture import _thumb
         from . import recorder as rec_mod
         when = datetime.fromtimestamp(started)

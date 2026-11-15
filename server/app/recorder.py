@@ -303,7 +303,7 @@ class Recorder:
         cam = video.camera
         created = _created_ms(video)
         key = f"{cam.device_id}:{created}"
-        if store.has(key):
+        if store.has(key) or not store.room_for_clip():     # storage full and set to stop
             return
 
         when = datetime.fromtimestamp(created / 1000)

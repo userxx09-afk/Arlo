@@ -108,7 +108,10 @@ class LiveCapture:
         return (item["path"], not item["done"]) if item else (None, False)
 
     def trigger(self, cam, reason="motion", chain=0, force=False):
-        """Start a capture in the background. Returns False if this camera is already busy."""
+        """Start a capture in the background. Returns False if this camera is already busy, or
+        storage is full and set to stop saving new clips."""
+        if not store.room_for_clip():
+            return False
         now = time.time()
         with self._lock:
             if cam.device_id in self._busy:
