@@ -18,7 +18,7 @@ android/   BCN for Android: the web page laid out for a phone, plus motion notif
   Live view stops 5 s after the last viewer leaves (or after 3 minutes) to save batteries.
 - **Recordings**: newest first, grouped by day or month, filter by camera, starred only,
   select several to star or delete. New clips appear without reloading.
-- **Arlo**: one or more Arlo accounts, each with **Sign out**, plus **Add another Arlo account**.
+- **Accounts**: Arlo cameras (one or more Arlo accounts), Blink cameras, and Laview & IP cameras, each with **Sign out**, plus **Add another Arlo account**.
   A camera both accounts can see is recorded once (by the account added first).
 - **Alerts**: text messages (Twilio), ntfy, Pushover, webhook, and the phone app.
 - Lays itself out for a phone with a bottom tab bar.
@@ -26,7 +26,7 @@ android/   BCN for Android: the web page laid out for a phone, plus motion notif
 
 ## Blink cameras
 
-Blink cameras can sit next to the Arlo ones (**Arlo** page → **Add Blink cameras**; email, password,
+Blink cameras can sit next to the Arlo ones (**Accounts** page → **Blink cameras**; email, password,
 then the code Blink sends). Their motion pops up on GarysTV like an Arlo camera's (tick them in
 GarysTV's Settings > Cameras), goes to the phone app, and sends the usual alerts; the clip is saved
 with the others. Uses [blinkpy](https://github.com/fronzbot/blinkpy).
@@ -39,7 +39,7 @@ with the others. Uses [blinkpy](https://github.com/fronzbot/blinkpy).
 
 ## Laview and other IP cameras
 
-**Arlo → Laview & IP cameras** (`/connect/ip`) adds cameras that send video on the home network:
+**Accounts → Laview & IP cameras** (`/connect/ip`) adds cameras that send video on the home network:
 Laview IP cameras and recorders (NVR/DVR), and most RTSP or ONVIF cameras. They work like Arlo ones:
 motion pops up on GarysTV (tick them in Settings › Cameras; they have their own "Laview & IP cameras"
 account tab), goes to the phone app and the alerts, records a clip, and Live view works.

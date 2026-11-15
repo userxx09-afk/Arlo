@@ -60,7 +60,7 @@ class Fleet:
 
     def _run(self, aid, rec):
         # Never retry a failed sign-in on our own: Arlo locks the account for about a day after
-        # repeated failures. Wait for a new password on the Arlo page instead.
+        # repeated failures. Wait for a new password on the Accounts page instead.
         lg = arlo_login.login(aid)
         while not lg.removed:
             user, pw = arlo_login.credentials(aid)
@@ -106,7 +106,7 @@ class Fleet:
                 log.warning("stopping %s: %s", rec.username, e)
 
     def accounts_view(self):
-        """For the Arlo page: each account and how its sign-in is going."""
+        """For the Accounts page: each account and how its sign-in is going."""
         out = []
         for a in arlo_login.accounts():
             rec = self._recs.get(a["id"])

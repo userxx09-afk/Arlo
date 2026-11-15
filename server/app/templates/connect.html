@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Arlo accounts · BCN{% endblock %}
-{% block header %}<div class="meta"><span>Arlo accounts</span></div>{% endblock %}
+{% block title %}Accounts · BCN{% endblock %}
+{% block header %}<div class="meta"><span>Camera accounts</span></div>{% endblock %}
 {% block style %}
   .acct .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .acct .top h2 { margin:0; }
@@ -11,6 +11,7 @@
 {% endblock %}
 {% block body %}
 <div id="live">
+<h2 id="arlo" style="margin:6px 0 10px;font-size:19px">Arlo cameras</h2>
 {% for a in accounts %}
 <section class="panel acct">
   <div class="top">

@@ -2,7 +2,7 @@
 
 BCN can watch several Arlo accounts at once. Each one is saved as {id, username, password}; the
 first ("main") keeps the session folder Camera Keeper always used, so an existing sign-in carries
-over without a new code. Passwords and 2FA codes are typed into the Arlo page. pyaarlo lets us
+over without a new code. Passwords and 2FA codes are typed into the Accounts page. pyaarlo lets us
 pass our own 2FA source object; its get() waits here until the code is entered on the page.
 """
 import os
@@ -138,7 +138,7 @@ def submit_code(aid, code):
 
 
 class WebTFA:
-    """pyaarlo 2FA source: shows a code box for this account on the Arlo page and waits for it."""
+    """pyaarlo 2FA source: shows a code box for this account on the Accounts page and waits for it."""
 
     def __init__(self, aid):
         self.aid = aid

@@ -260,7 +260,7 @@ def active_numbers_or_channel(s):
 
 # --- Arlo accounts and sign-in ------------------------------------------------
 def _connect_state(accs=None):
-    """Where each account's sign-in is. The Arlo page reloads itself when this changes."""
+    """Where each account's sign-in is. The Accounts page reloads itself when this changes."""
     if accs is None:
         accs = (recorder.accounts_view() + recorder.blink.accounts_view()) if recorder else []
     return [{k: a.get(k) for k in ("id", "connected", "signing_in", "waiting_for_code", "error")} for a in accs]

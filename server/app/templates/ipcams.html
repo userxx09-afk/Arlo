@@ -47,7 +47,7 @@
     <div class="field"><label>Small RTSP stream (optional, used for watching motion)</label><input type="text" name="sub_url" value="{{ s.sub_url or '' }}" placeholder="rtsp://192.168.4.60:554/Streaming/Channels/102" autocapitalize="none"></div>
   </details>
 {% endmacro %}
-<p><a href="{{ url_for('connect') }}">‹ Arlo and Blink accounts</a></p>
+<p><a href="{{ url_for('connect') }}">‹ Accounts</a></p>
 
 <div id="cams">
 {% for c in cams %}
