@@ -1,0 +1,15 @@
+# Install on tapper: sudo install -m 755 bcn-relay.py /usr/local/bin/ && sudo cp bcn-relay.service
+# /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now bcn-relay
+[Unit]
+Description=BCN relay: bcn.tapper.co (tunnel -> localhost:8090) to DESKTOP-OFIE0BD over the VPN
+After=network-online.target tappervpnd.service
+Conflicts=camera-keeper.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/bcn-relay.py 100.64.0.8 8090 8090
+Restart=always
+RestartSec=5
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target

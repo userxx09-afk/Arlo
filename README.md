@@ -98,6 +98,10 @@ key access to tapper and Camera Keeper installed on the new server):
 .\move-bcn.ps1 all       # both;  .\move-bcn.ps1 undo  turns tapper's copy back on
 ```
 
+Without a Cloudflare token (`-NoTunnel`), `server/deploy/bcn-relay.py` + `bcn-relay.service` on tapper
+pass bcn.tapper.co (the tunnel sends it to tapper's localhost:8090) on to the new server over the
+VPN until the name is switched on the new server's Move page; then disable the relay.
+
 Defaults: from `claude@100.64.0.2` (tapper) to `http://100.64.0.8:8090`; `-To`, `-ClipsFolder
 'D:\BCN Clips'`, `-CloudflareToken`, `-NoClips`, `-KeepFile` change them.
 

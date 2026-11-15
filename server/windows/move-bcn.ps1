@@ -79,6 +79,12 @@ function Remote([string]$Script, [string[]]$ArgList = @()) {
 
 $ExportScript = @'
 OUT=$1; shift
+C=/etc/selfheal/selfheal.conf      # selfheal restarts stopped services: stop it watching this one first
+if [ -f "$C" ] && grep -q camera-keeper "$C"; then
+  sudo cp -a "$C" "$C.before-bcn-move"
+  sudo sed -i -E '/^SERVICES=/s/ ?camera-keeper//; /^HTTP_CHECKS=/s# ?camera-keeper\|http://127\.0\.0\.1:8090/health##' "$C"
+  echo "selfheal no longer watches camera-keeper (old settings: $C.before-bcn-move)."
+fi
 echo "Stopping Camera Keeper on $(hostname) for a clean copy..."
 sudo systemctl stop camera-keeper
 sudo rm -f "$OUT" "$OUT.sha256"
@@ -89,6 +95,8 @@ sha256sum "$OUT" | cut -d' ' -f1 > "$OUT.sha256"
 '@
 
 $RestartScript = @'
+C=/etc/selfheal/selfheal.conf
+[ -f "$C.before-bcn-move" ] && sudo cp -a "$C.before-bcn-move" "$C" && echo "selfheal watches camera-keeper again."
 sudo systemctl start camera-keeper
 echo "Camera Keeper is running on $(hostname) again."
 '@
@@ -96,14 +104,8 @@ echo "Camera Keeper is running on $(hostname) again."
 $FinishExportScript = @'
 OUT=$1; TO=$2
 py "from app import store; import time; store.init(); store.set_setting('moved_away', {'at': time.strftime('%Y-%m-%d %H:%M'), 'to': sys.argv[1]})" "$TO"
-sudo systemctl disable camera-keeper 2>&1 | grep -v '^Removed' || true
+sudo systemctl disable --now camera-keeper 2>&1 | grep -v '^Removed' || true
 echo "Camera Keeper on $(hostname): $(systemctl is-active camera-keeper), $(systemctl is-enabled camera-keeper 2>/dev/null)."
-C=/etc/selfheal/selfheal.conf
-if [ -f "$C" ] && grep -q camera-keeper "$C"; then
-  sudo cp -a "$C" "$C.before-bcn-move"
-  sudo sed -i -E '/^SERVICES=/s/ ?camera-keeper//; /^HTTP_CHECKS=/s# ?camera-keeper\|http://127\.0\.0\.1:8090/health##' "$C"
-  echo "selfheal no longer watches camera-keeper (old settings: $C.before-bcn-move)."
-fi
 sudo rm -f "$OUT" "$OUT.sha256"
 '@
 
@@ -111,13 +113,16 @@ $UndoScript = @'
 C=/etc/selfheal/selfheal.conf
 [ -f "$C.before-bcn-move" ] && sudo cp -a "$C.before-bcn-move" "$C" && echo "selfheal watches camera-keeper again."
 py "from app import store; store.init(); c = store.connect(); c.execute(\"DELETE FROM settings WHERE key='moved_away'\"); c.commit()"
+sudo systemctl disable --now bcn-relay 2>/dev/null || true     # the relay (if used) holds port 8090
 sudo systemctl enable --now camera-keeper 2>&1 | grep -v '^Created' || true
 echo "Camera Keeper on $(hostname): $(systemctl is-active camera-keeper)."
 '@
 
 $GarysScript = @'
 URL=$1
-if curl -sf -m 10 http://127.0.0.1:5480/api/settings -o /tmp/garystv-settings.json; then
+F=/var/lib/garystv/data/settings.json      # GarysTV's API saves settings but can't read them back
+if [ -f "$F" ] && curl -s -m 10 -o /dev/null http://127.0.0.1:5480/api/ping; then
+  sudo cat "$F" > /tmp/garystv-settings.json
   python3 - "$URL" <<'P'
 import json, sys, urllib.request
 s = json.load(open('/tmp/garystv-settings.json'))
