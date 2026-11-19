@@ -9,15 +9,31 @@
   .signin form { display:flex; flex-direction:column; gap:10px; text-align:left; }
   .signin input { width:100%; }
   .signin button { padding:11px; font-size:16px; }
+  .signin .gbtn { width:100%; padding:12px; font-size:16px; }
+  .signin details.pw { margin-top:22px; text-align:left; color:var(--muted); }
+  .signin details.pw form { margin-top:10px; }
   :root { --tabbar:0px !important; }
 {% endblock %}
 {% block body %}
 <div class="signin">
   <img src="{{ url_for('static', filename='bcn.svg') }}" alt="">
   <h1>Barb's Camera Notifications</h1>
-  {% if enabled %}
-  <p>Sign in to see the cameras from away from home. This phone or browser stays signed in.</p>
   {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  {% if google %}
+  <p>Sign in with your Google account to see your cameras. This phone or browser stays signed in.</p>
+  <a class="btn primary gbtn" href="{{ url_for('auth_google', next=next) }}">Sign in with Google</a>
+  {% if enabled %}
+  <details class="pw"><summary>Use the household name and password instead</summary>
+  <form method="post" action="{{ url_for('login_submit') }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <input type="text" name="user" value="{{ user }}" placeholder="Name" autocomplete="username" autocapitalize="none" required>
+    <input type="password" name="password" placeholder="Password" autocomplete="current-password" required>
+    <button>Sign in</button>
+  </form>
+  </details>
+  {% endif %}
+  {% elif enabled %}
+  <p>Sign in to see the cameras from away from home. This phone or browser stays signed in.</p>
   <form method="post" action="{{ url_for('login_submit') }}">
     <input type="hidden" name="next" value="{{ next }}">
     <input type="text" name="user" value="{{ user }}" placeholder="Name" autocomplete="username" autocapitalize="none" required autofocus>

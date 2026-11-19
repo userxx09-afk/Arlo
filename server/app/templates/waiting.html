@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Almost there · BCN{% endblock %}
+{% block style %}
+  .tabbar, .topbar .nav { display:none !important; }
+  .signin { max-width:420px; margin:40px auto; text-align:center; }
+  .signin img { width:96px; height:96px; }
+  .signin h1 { font-size:24px; margin:10px 0 4px; }
+  .signin p { color:var(--muted); }
+  :root { --tabbar:0px !important; }
+{% endblock %}
+{% block body %}
+<div class="signin">
+  <img src="{{ url_for('static', filename='bcn.svg') }}" alt="">
+  <h1>Almost there</h1>
+  <p>You're signed in as <b>{{ u.email }}</b>. The owner needs to let you in once. Ask them, then reload this page.</p>
+  <p><a class="btn" href="{{ url_for('waiting') }}">Reload</a> <a class="btn" href="{{ url_for('logout') }}">Use another account</a></p>
+</div>
+{% endblock %}

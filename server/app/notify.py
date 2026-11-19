@@ -165,6 +165,9 @@ def _deliver(s, title, body, link=None, thumb=None, extra=None):
 
 def send(camera_id, kind, title, body, link=None, thumb=None, extra=None):
     """kind is 'motion' or 'clip'; cooldown is tracked per camera per kind."""
+    from . import users
+    if users.private_camera(camera_id):
+        return []
     s = current()
     key = (camera_id, kind)
     now = time.time()
