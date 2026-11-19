@@ -46,7 +46,13 @@ accounts may get in, and can see everything.
 
 ## Build order
 
-1. Users + Google sign-in on the web page (replacing the shared password).
-2. Account ownership + server-side filtering + migration.
+1. Users + Google sign-in on the web page (replacing the shared password). **Built** (Nov 19):
+   `app/users.py`, `app/google_auth.py`, the People page. The shared password and the home network
+   still work as owner-level access until they're turned off, so GarysTV and the phone app keep
+   working until step 4.
+2. Account ownership + server-side filtering + migration. **Built** (Nov 19). No migration needed:
+   an account nobody claimed is the owner's. Owners are kept in the `account_owners` setting; each
+   camera's account in `camera_accounts`, so clips stay private after an account signs out.
+   Owners can also make someone an admin (sees everything). Tests: `server/tests/people_test.py`.
 3. Per-person alerts.
 4. Android sign-in and app release; GarysTV link per user.

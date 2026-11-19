@@ -119,8 +119,10 @@
   <nav class="nav">
     <a href="{{ url_for('index') }}#cameras" data-tab="cameras">Cameras</a>
     <a href="{{ url_for('index') }}#recordings" data-tab="recordings">Recordings</a>
-    <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint in ('settings','test_alert') }}">Alerts{% if alerts_need_setup %} <span class="alert-dot"></span>{% endif %}</a>
+    {% if viewer.admin %}<a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint in ('settings','test_alert') }}">Alerts{% if alerts_need_setup %} <span class="alert-dot"></span>{% endif %}</a>{% endif %}
     <a href="{{ url_for('connect') }}" class="{{ 'on' if request.endpoint in ('connect', 'ipcams_page') }}">Accounts</a>
+    {% if viewer.admin %}<a href="{{ url_for('people') }}" class="{{ 'on' if request.endpoint == 'people' }}">People</a>{% endif %}
+    {% if viewer.uid %}<a href="{{ url_for('logout') }}" title="Signed in as {{ viewer.email }}">Sign out</a>{% endif %}
   </nav>
 </header>
 <main>
@@ -134,8 +136,8 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>Cameras</a>
   <a href="{{ url_for('index') }}#recordings" data-tab="recordings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Recordings</a>
-  <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint in ('settings','test_alert') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Alerts{% if alerts_need_setup %}<span class="alert-dot"></span>{% endif %}</a>
+  {% if viewer.admin %}<a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint in ('settings','test_alert') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Alerts{% if alerts_need_setup %}<span class="alert-dot"></span>{% endif %}</a>{% endif %}
   <a href="{{ url_for('connect') }}" class="{{ 'on' if request.endpoint in ('connect', 'ipcams_page') }}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Accounts</a>
 </nav>

@@ -37,8 +37,9 @@ def listeners():
         return len(_listeners)
 
 
-def stream(since_ms=0, heartbeat=20):
-    """Yields server-sent-event text. Sends events newer than `since_ms` first."""
+def stream(since_ms=0, heartbeat=20, allow=None):
+    """Yields server-sent-event text. Sends events newer than `since_ms` first.
+    allow(event) -> bool: only those events (each person gets only their own cameras')."""
     q = queue.Queue(maxsize=100)
     with _lock:
         backlog = [e for e in _recent if since_ms and e["time"] > since_ms]
@@ -46,10 +47,13 @@ def stream(since_ms=0, heartbeat=20):
     try:
         yield "retry: 5000\n\n"
         for ev in backlog:
-            yield _fmt(ev)
+            if allow is None or allow(ev):
+                yield _fmt(ev)
         while True:
             try:
-                yield _fmt(q.get(timeout=heartbeat))
+                ev = q.get(timeout=heartbeat)
+                if allow is None or allow(ev):
+                    yield _fmt(ev)
             except queue.Empty:
                 yield ": ping\n\n"   # keeps the connection (and phone Wi-Fi) from timing out
     finally:

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}People · BCN{% endblock %}
+{% block header %}<div class="meta"><span>People</span></div>{% endblock %}
+{% block style %}
+  .people { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
+  .people li { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px; border:1px solid var(--line, #22334f); border-radius:10px; }
+  .people .who { flex:1; min-width:200px; }
+  .people .who b { display:block; }
+  .people form { margin:0; }
+  .tag { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #3a5687; }
+  .tag.wait { border-color:var(--accent); color:var(--accent); }
+  code { word-break:break-all; }
+{% endblock %}
+{% block body %}
+{% if on %}
+<section class="panel" id="people">
+  <h2>👥 People</h2>
+  <p>Everyone signs in with their Google account. You see every camera. Everyone else sees only the cameras on the accounts they add themselves on the Accounts page.</p>
+  {% if people %}
+  <ul class="people">
+    {% for uid, u in people %}
+    <li>
+      <div class="who"><b>{{ u.name }}</b><span class="muted">{{ u.email }}{% if u.last_seen %} · seen {{ (u.last_seen * 1000) | ago }}{% endif %}</span>
+        {% if added.get(uid) %}<div class="muted">Added: {% for a in added[uid] %}{{ a.name }} ({{ a.brand }}){{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+      </div>
+      {% if u.role == 'owner' %}<span class="tag">Owner · sees everything</span>
+      {% else %}
+        {% if not u.approved %}<span class="tag wait">Waiting for you</span>
+        {% elif u.role == 'admin' %}<span class="tag">Admin · sees everything</span>
+        {% else %}<span class="tag">Sees their own cameras</span>{% endif %}
+        {% if not u.approved %}
+        <form method="post" action="{{ url_for('people_action', uid=uid, action='approve') }}"><button class="primary">Let in</button></form>
+        {% else %}
+        <form method="post" action="{{ url_for('people_action', uid=uid, action='admin' if u.role != 'admin' else 'user') }}"><button>{{ 'Make admin' if u.role != 'admin' else 'Only their cameras' }}</button></form>
+        <form method="post" action="{{ url_for('people_action', uid=uid, action='block') }}"><button>Block</button></form>
+        {% endif %}
+        <form method="post" action="{{ url_for('people_action', uid=uid, action='remove') }}" onsubmit="return confirm('Remove {{ u.email }}? The accounts they added stay on BCN and become yours.')"><button class="danger">Remove</button></form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nobody has signed in yet. Open <b>{{ g_settings.base_url }}</b> and sign in with {{ g_settings.owner_email }} first.</p>
+  {% endif %}
+  <p class="muted" style="margin-top:10px">To add someone, send them the link {{ g_settings.base_url }}. They sign in with Google and show up here for you to let in.</p>
+</section>
+
+<section class="panel" id="home">
+  <h2>🏠 At home</h2>
+  <p>GarysTV and today's phone app can't sign in with Google yet. While this is on, anything on the home network gets in without signing in and sees every camera, like before.</p>
+  <form method="post" action="{{ url_for('people_google') }}">
+    <input type="hidden" name="action" value="home">
+    <label class="check"><input type="checkbox" name="home_trusted" value="1" {{ 'checked' if g_settings.home_trusted }}> Trust the home network (no sign-in needed at home)</label>
+    <div class="actions"><button class="primary">Save</button></div>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel" id="google">
+  <h2>🔑 Sign in with Google</h2>
+  {% if on %}<p class="muted" style="margin-top:-6px">✅ On. The owner is {{ g_settings.owner_email }}.</p>
+  {% else %}<p>Turn this on so each person signs in with their own Google account and sees only their own cameras. No passwords to manage.</p>
+  <ol class="muted">
+    <li>In <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud › Credentials</a>, create an <b>OAuth client ID</b> of type <b>Web application</b>.</li>
+    <li>Under <b>Authorized redirect URIs</b>, add <code>{{ redirect_uri }}</code></li>
+    <li>Paste the client ID and secret here, with your own Google account as the owner.</li>
+  </ol>{% endif %}
+  <form method="post" action="{{ url_for('people_google') }}">
+    <div class="field"><label>Client ID</label><input type="text" name="client_id" value="{{ g_settings.client_id }}" autocomplete="off" placeholder="1234-abc.apps.googleusercontent.com"></div>
+    <div class="field"><label>Client secret</label><input type="password" name="client_secret" autocomplete="new-password" placeholder="{{ 'saved (leave blank to keep)' if has_secret else 'GOCSPX-…' }}"></div>
+    <div class="field"><label>Owner's Google account</label><input type="email" name="owner_email" value="{{ g_settings.owner_email }}" autocomplete="off" placeholder="you@gmail.com"></div>
+    <div class="field"><label>Public address</label><input type="url" name="base_url" value="{{ g_settings.base_url }}" autocomplete="off"></div>
+    <div class="actions"><button class="primary" name="action" value="save">Save</button>
+      {% if on %}<button class="danger" name="action" value="off" formnovalidate onclick="return confirm('Turn off Google sign-in? Everyone else is signed out and BCN works like before.')">Turn off</button>{% endif %}
+    </div>
+  </form>
+</section>
+{% endblock %}

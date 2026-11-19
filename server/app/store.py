@@ -106,10 +106,26 @@ def cameras():
             "FROM clips GROUP BY camera_id ORDER BY camera_name")]
 
 
-def stats():
+def stats(camera_ids=None):
+    """How many clips and how big. camera_ids: only those cameras' (None = all)."""
+    sql, args = "SELECT COUNT(*) n, COALESCE(SUM(size_bytes),0) b FROM clips", []
+    if camera_ids is not None:
+        if not camera_ids:
+            return {"count": 0, "bytes": 0}
+        sql += f" WHERE camera_id IN ({','.join('?' * len(camera_ids))})"
+        args = list(camera_ids)
     with connect() as c:
-        r = c.execute("SELECT COUNT(*) n, COALESCE(SUM(size_bytes),0) b FROM clips").fetchone()
+        r = c.execute(sql, args).fetchone()
         return {"count": r["n"], "bytes": r["b"]}
+
+
+def by_file(rel):
+    """The clip a file under CLIPS_DIR (its video or its picture) belongs to."""
+    fwd, back = rel.replace("\\", "/"), rel.replace("/", "\\")   # Windows servers save backslashes
+    with connect() as c:
+        r = c.execute("SELECT * FROM clips WHERE video_path IN (?, ?) OR thumb_path IN (?, ?) LIMIT 1",
+                      (fwd, back, fwd, back)).fetchone()
+        return dict(r) if r else None
 
 
 def set_starred(key, starred):

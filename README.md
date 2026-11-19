@@ -118,6 +118,30 @@ the tunnel (they carry `Cf-Connecting-IP`) must sign in; set the name and passwo
 **Alerts → Away from home**. Until one is set, outside visits are turned away. At home nothing
 needs a sign-in, so other apps on the home network (GarysTV) keep working.
 
+## Each person sees only their own cameras (Sign in with Google)
+
+Off until it's set up on **Accounts → People** (or with `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+and `BCN_OWNER_EMAIL` in the env file). Once on:
+
+- Everyone signs in with their Google account at `https://bcn.tapper.co`: no passwords to manage.
+- The owner (`BCN_OWNER_EMAIL`) sees every camera and lets new people in on the People page. The
+  owner can make someone an **admin**, who also sees everything.
+- Everyone else sees only the Arlo/Blink accounts and IP cameras they add themselves on the Accounts
+  page: their cameras, clips, live view, recordings and phone events. This is checked on the server
+  for every request, not just hidden on the page. Accounts added before sign-in was turned on are the
+  owner's. Nobody can add (or change the password of) an account someone else already added.
+- Alerts, Storage, Move and People are the owner's and admins' only. The household's texts and
+  GarysTV pop-ups skip other people's cameras; each person getting their own alerts is the next step
+  (see [docs/global-bcn.md](docs/global-bcn.md)).
+- **Trust the home network** (on by default): at home, GarysTV and today's phone app still get in
+  without signing in and see everything. Turn it off once they can sign in with Google. The
+  away-from-home password keeps working as owner-level access until it's turned off on Alerts.
+- Locked out? `BCN_GOOGLE_SIGNIN=off` in the env file turns Google sign-in off until it's removed.
+
+Setting up Google: in [Google Cloud › Credentials](https://console.cloud.google.com/apis/credentials)
+create an OAuth client ID (type **Web application**) with the redirect URI
+`https://bcn.tapper.co/auth/google/callback`, then paste its ID and secret on the People page.
+
 ## Server
 
 See [server/README.md](server/README.md). Both builds are made by GitHub Actions on every push to

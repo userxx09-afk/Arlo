@@ -54,6 +54,9 @@ def active():
 
 def motion_started(event):
     """event: {camera, camera_id, time (ms), file, key, live, clip}. Sent in the background."""
+    from . import users
+    if users.private_camera(event.get("camera_id")):
+        return   # the household's TVs don't pop up other people's cameras (a TV per person comes later)
     for url in active():
         threading.Thread(target=_post, args=(url, event), daemon=True, name="garystv-post").start()
 

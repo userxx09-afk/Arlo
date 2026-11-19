@@ -10,6 +10,12 @@
   .ok { color:var(--green); } .bad { color:var(--danger); }
 {% endblock %}
 {% block body %}
+{% if people_on %}
+<p class="muted" style="margin:4px 0 12px">{% if viewer.admin %}You see every account. <a href="{{ url_for('people') }}">People</a>: who can sign in.{% else %}Only you see the cameras on the accounts you add here.{% endif %}
+  {% if viewer.uid %}Signed in as {{ viewer.email }} · <a href="{{ url_for('logout') }}">Sign out</a>{% endif %}</p>
+{% elif viewer.admin %}
+<p class="muted" style="margin:4px 0 12px"><a href="{{ url_for('people') }}">People</a>: let each person sign in with Google and see only their own cameras.</p>
+{% endif %}
 <div id="live">
 <h2 id="arlo" style="margin:6px 0 10px;font-size:19px">Arlo cameras</h2>
 {% for a in accounts %}

@@ -8,11 +8,12 @@ from datetime import datetime
 
 import secrets
 from datetime import timedelta
+from urllib.parse import urlsplit
 
-from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
+from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_template, request,
                    send_from_directory, session, url_for)
 
-from . import arlo_login, config, events, garystv, ipcam, liveview, notify, remote, store
+from . import arlo_login, config, events, garystv, google_auth, ipcam, liveview, notify, remote, store, users
 
 app = Flask(__name__, template_folder="templates")
 log_web = logging.getLogger("web")
@@ -28,36 +29,100 @@ recorder = None  # set by main.py
 app.permanent_session_lifetime = timedelta(days=365)
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 
-# --- away from home: visits through the Cloudflare tunnel must sign in ---------
-OPEN_OUTSIDE = {"login", "login_submit", "static", "manifest"}
+# --- who is looking: Google sign-in, the home network, or the away-from-home password -------
+# Endpoints anyone may open (the sign-in pages themselves).
+OPEN = {"login", "login_submit", "static", "manifest", "auth_google", "auth_google_callback", "waiting",
+        "logout", "health"}
+ADMIN = {"admin": True, "uid": None, "email": None, "name": None}     # sees and changes everything
+API_PREFIXES = ("/api/", "/media/", "/live/", "/bcn.apk", "/ban.apk", "/photo", "/cameras.json", "/health")
 
 
-@app.before_request
-def _outside_needs_login():
-    if not remote.is_remote(request) or request.endpoint in OPEN_OUTSIDE:
-        return None
-    if remote.enabled() and session.get("remote") == remote.stamp():
-        return None
-    # Apps (GarysTV, ffmpeg) can't fill in the sign-in page: they send the name and password
-    # with every request instead (https://name:password@bcn.tapper.co).
+def _signed_in_user():
+    """The Google-signed-in person on this browser or phone, if their sign-in is still good."""
+    uid = session.get("uid")
+    u = users.get(uid)
+    if not u or session.get("ustamp") != u.get("stamp"):
+        return None, None
+    return uid, u
+
+
+def _password_ok():
+    """The away-from-home password: the sign-in page's cookie, or HTTP Basic from an app (GarysTV
+    sends https://name:password@bcn.tapper.co). Returns True, False, or a 401 Response."""
+    if not remote.enabled():
+        return False
+    if session.get("remote") == remote.stamp():
+        return True
     auth = request.authorization
-    if auth and auth.type == "basic" and remote.enabled():
+    if auth and auth.type == "basic":
         ip = remote.client_ip(request)
         if remote.check_basic(ip, auth.username, auth.password):
-            return None
+            return True
         return Response("Too many wrong tries. Wait 15 minutes and try again." if remote.locked(ip)
                         else "That name and password don't match the away-from-home sign-in.", 401)
-    wants_page = request.method == "GET" and not request.path.startswith(("/api/", "/media/", "/live/", "/bcn.apk", "/ban.apk", "/photo", "/cameras.json", "/health"))
+    return False
+
+
+def _sign_in_first():
+    wants_page = request.method == "GET" and not request.path.startswith(API_PREFIXES)
     if wants_page:
         return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
     return Response("Sign in first", 401)
+
+
+@app.before_request
+def _who():
+    g.viewer = ADMIN
+    if request.endpoint in OPEN:
+        if users.enabled():
+            uid, u = _signed_in_user()
+            if u:
+                g.viewer = _viewer(uid, u)
+        return None
+    if not users.enabled():
+        # Before Google sign-in is set up: open at home, the away-from-home password outside.
+        if not remote.is_remote(request):
+            return None
+        ok = _password_ok()
+        return ok if isinstance(ok, Response) else (None if ok else _sign_in_first())
+    uid, u = _signed_in_user()
+    if u:
+        if not u.get("approved"):
+            return redirect(url_for("waiting")) if not request.path.startswith(API_PREFIXES) \
+                else Response("Waiting for the owner to let you in", 403)
+        g.viewer = _viewer(uid, u)
+        return None
+    if not remote.is_remote(request) and users.home_trusted():
+        return None
+    ok = _password_ok()
+    if isinstance(ok, Response):
+        return ok
+    return None if ok else _sign_in_first()
+
+
+def _viewer(uid, u):
+    return {"admin": users.is_admin(u), "uid": uid, "email": u["email"], "name": u.get("name"),
+            "role": u.get("role")}
+
+
+def _admin_only(fn):
+    """Alerts, storage, moving the server, the people page: admins only."""
+    @functools.wraps(fn)
+    def wrapper(*a, **kw):
+        if not g.viewer["admin"]:
+            if request.method == "GET" and not request.path.startswith(API_PREFIXES):
+                flash("Only the owner can open that page.", "info")
+                return redirect(url_for("index"))
+            return Response("Only the owner can do that", 403)
+        return fn(*a, **kw)
+    return wrapper
 
 
 @app.get("/login")
 def login():
     nxt = request.args.get("next") or "/"
     return render_template("login.html", next=nxt if nxt.startswith("/") else "/", enabled=remote.enabled(),
-                           error=None, user="")
+                           google=users.enabled(), error=None, user="")
 
 
 @app.post("/login")
@@ -71,13 +136,65 @@ def login_submit():
         return redirect(nxt)
     error = ("Too many wrong tries. Wait 15 minutes and try again." if remote.locked(ip)
              else "That name and password don't match.")
-    return render_template("login.html", next=nxt, enabled=remote.enabled(), error=error, user=user), 401
+    return render_template("login.html", next=nxt, enabled=remote.enabled(), google=users.enabled(),
+                           error=error, user=user), 401
 
 
 @app.get("/logout")
 def logout():
-    session.pop("remote", None)
+    for k in ("remote", "uid", "ustamp"):
+        session.pop(k, None)
     return redirect(url_for("login"))
+
+
+def _safe_next(nxt):
+    return nxt if nxt and nxt.startswith("/") and not nxt.startswith(("//", "/\\")) else "/"
+
+
+@app.get("/auth/google")
+def auth_google():
+    """Start Sign in with Google. Always on the public address Google knows (bcn.tapper.co), so
+    the sign-in cookie lands where Google sends the browser back to."""
+    if not users.enabled():
+        return redirect(url_for("login"))
+    base = users.google()["base_url"]
+    nxt = _safe_next(request.args.get("next"))
+    if urlsplit(base).netloc.lower() != request.host.lower():
+        return redirect(base + url_for("auth_google", next=nxt))
+    session["g_state"], session["g_nonce"], session["g_next"] = secrets.token_urlsafe(24), secrets.token_urlsafe(24), nxt
+    return redirect(google_auth.auth_url(session["g_state"], session["g_nonce"]))
+
+
+@app.get("/auth/google/callback")
+def auth_google_callback():
+    def fail(msg):
+        return render_template("login.html", next="/", enabled=remote.enabled(), google=users.enabled(),
+                               error=msg, user=""), 400
+    state, nonce = session.pop("g_state", None), session.pop("g_nonce", None)
+    nxt = _safe_next(session.pop("g_next", "/"))
+    if request.args.get("error"):
+        return fail("Google sign-in was cancelled.")
+    if not state or request.args.get("state") != state:
+        return fail("That sign-in didn't start here (or took too long). Try again.")
+    try:
+        who = google_auth.exchange(request.args.get("code", ""), nonce)
+    except google_auth.SignInError as e:
+        return fail(str(e))
+    uid, u = users.sign_in(who["email"], who["name"])
+    session.permanent = True
+    session["uid"], session["ustamp"] = uid, u["stamp"]
+    log_web.info("signed in with Google: %s (%s)", u["email"], u["role"] if u["approved"] else "waiting")
+    return redirect(nxt if u["approved"] else url_for("waiting"))
+
+
+@app.get("/waiting")
+def waiting():
+    uid, u = _signed_in_user() if users.enabled() else (None, None)
+    if not u:
+        return redirect(url_for("login"))
+    if u.get("approved"):
+        return redirect(url_for("index"))
+    return render_template("waiting.html", u=u)
 
 
 def _auth(fn):
@@ -127,7 +244,7 @@ def index():
 @app.post("/camera/<cam_id>/record")
 @_auth
 def record_now(cam_id):
-    if recorder and recorder.record_now(cam_id):
+    if recorder and _can_cam(cam_id) and recorder.record_now(cam_id):
         flash("Recording a test clip. It shows up here in about 30–40 seconds.", "ok")
     else:
         flash("That camera is already recording, or isn't available.", "info")
@@ -137,7 +254,55 @@ def record_now(cam_id):
 @app.get("/cameras.json")
 @_auth
 def cameras_json():
-    return jsonify(recorder.cameras_view() if recorder and hasattr(recorder, "cameras_view") else [])
+    return jsonify(_visible() if recorder and hasattr(recorder, "cameras_view") else [])
+
+
+# --- each person sees only their own cameras ---------------------------------------
+def _all_cams():
+    return recorder.cameras_view() if recorder else []
+
+
+def _allowed():
+    """Camera ids the viewer may see, or None for everything (admins, and before sign-in is on)."""
+    return users.allowed_cameras(g.viewer, _all_cams())
+
+
+def _visible(cams=None):
+    cams = _all_cams() if cams is None else cams
+    a = _allowed()
+    return cams if a is None else [c for c in cams if c["id"] in a]
+
+
+def _can_cam(cam_id):
+    a = _allowed()
+    return a is None or cam_id in a
+
+
+def _can_clip(key):
+    row = store.get(key)
+    return bool(row) and _can_cam(row["camera_id"])
+
+
+def _mine(keys):
+    """The clip keys from this list the viewer may change."""
+    a = _allowed()
+    if a is None:
+        return keys
+    return [k for k in keys if (r := store.get(k)) and r["camera_id"] in a]
+
+
+def _query(camera_id=None, day=None, starred=False, limit=200, offset=0, camera_ids=None):
+    """store.query, limited to the viewer's cameras."""
+    a = _allowed()
+    if a is not None:
+        camera_ids = a if camera_ids is None else [c for c in camera_ids if c in a]
+        if not camera_ids or (camera_id and camera_id not in camera_ids):
+            return []
+    return store.query(camera_id, day, starred, limit=limit, offset=offset, camera_ids=camera_ids)
+
+
+def _own_account(brand, username):
+    return users.can_use(users.account_key(brand, username), g.viewer)
 
 
 # --- GarysTV (motion clips pop up on the TV) ---------------------------------
@@ -146,8 +311,9 @@ def cameras_json():
 def api_cameras():
     """The cameras, for GarysTV's Settings > Cameras."""
     s = recorder.status if recorder else {}
-    cams = recorder.cameras_view() if recorder else []
-    return jsonify({"connected": bool(s.get("connected")), "modes": recorder.modes() if recorder else {},
+    cams = _visible()
+    return jsonify({"connected": bool(s.get("connected")),
+                    "modes": recorder.modes() if recorder and g.viewer["admin"] else {},
                     "cameras": [{k: c.get(k) for k in ("id", "name", "model", "battery", "unavailable",
                                                        "last_motion", "last_clip", "account")}
                                 | {"brand": c.get("brand") or "arlo"} for c in cams],
@@ -155,21 +321,24 @@ def api_cameras():
 
 
 def _accounts_list():
-    """Every Arlo and Blink account, for GarysTV's filter by account."""
+    """The viewer's Arlo and Blink accounts, for GarysTV's filter by account."""
     if not recorder:
         return []
+    ipcams = recorder.ipcams.any() and (g.viewer["admin"] or any((c.get("brand") == ipcam.BRAND) for c in _visible()))
     return ([{"username": a["username"], "brand": "arlo", "connected": a["connected"],
-              "waiting_for_code": a["waiting_for_code"]} for a in recorder.accounts_view()]
+              "waiting_for_code": a["waiting_for_code"]} for a in recorder.accounts_view()
+             if _own_account("arlo", a["username"])]
             + [{"username": a["username"], "brand": "blink", "connected": a["connected"],
-                "waiting_for_code": a["waiting_for_code"]} for a in recorder.blink.accounts_view()]
+                "waiting_for_code": a["waiting_for_code"]} for a in recorder.blink.accounts_view()
+               if _own_account("blink", a["username"])]
             + ([{"username": ipcam.ACCOUNT, "brand": ipcam.BRAND, "connected": recorder.ipcams.connected(),
-                 "waiting_for_code": False}] if recorder.ipcams.any() else []))
+                 "waiting_for_code": False}] if ipcams else []))
 
 
 def _account_cameras(account):
     """The camera ids on one account: "arlo:email", "blink:email", or just the email."""
     brand, user = account.split(":", 1) if account.startswith(("arlo:", "blink:", "ipcam:")) else ("", account)
-    cams = recorder.cameras_view() if recorder else []
+    cams = _visible()
     return [c["id"] for c in cams if (c.get("account") or "").lower() == user.lower()
             and (not brand or (c.get("brand") or "arlo") == brand)]
 
@@ -186,6 +355,7 @@ def _subscriber_url():
 
 @app.post("/api/subscribe")
 @_auth
+@_admin_only
 def api_subscribe():
     if remote.is_remote(request) and not (request.get_json(silent=True) or {}).get("url"):
         return jsonify({"ok": False, "error": "Connected through bcn.tapper.co, which works for clips, but motion pop-ups "
@@ -197,6 +367,7 @@ def api_subscribe():
 
 @app.delete("/api/subscribe")
 @_auth
+@_admin_only
 def api_unsubscribe():
     garystv.unsubscribe(_subscriber_url())
     return jsonify({"ok": True})
@@ -205,7 +376,7 @@ def api_unsubscribe():
 @app.post("/api/test-motion/<cam_id>")
 @_auth
 def api_test_motion(cam_id):
-    ok = bool(recorder and recorder.test_motion(cam_id))
+    ok = bool(recorder and _can_cam(cam_id) and recorder.test_motion(cam_id))
     return jsonify({"ok": ok, "error": None if ok else "That camera is already recording, or isn't available."})
 
 
@@ -216,7 +387,7 @@ def live_clip(live_id):
 
     Can be asked for before the first picture has arrived; it waits for it.
     """
-    if not re.fullmatch(r"[A-Za-z0-9_-]+", live_id) or not recorder:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", live_id) or not recorder or not _can_cam(live_id.rsplit("-", 1)[0]):
         abort(404)
     path, recording = recorder.capture.live_file(live_id)
     if not path:
@@ -251,7 +422,8 @@ def live_clip(live_id):
 def _globals():
     s = notify.current()
     return {"alerts_need_setup": not active_numbers_or_channel(s), "notify_settings": s,
-            "pretty_number": notify.pretty_number}
+            "pretty_number": notify.pretty_number, "viewer": getattr(g, "viewer", ADMIN),
+            "people_on": users.enabled()}
 
 
 def active_numbers_or_channel(s):
@@ -262,16 +434,33 @@ def active_numbers_or_channel(s):
 def _connect_state(accs=None):
     """Where each account's sign-in is. The Accounts page reloads itself when this changes."""
     if accs is None:
-        accs = (recorder.accounts_view() + recorder.blink.accounts_view()) if recorder else []
+        accs = (_my_arlo() + _my_blink()) if recorder else []
     return [{k: a.get(k) for k in ("id", "connected", "signing_in", "waiting_for_code", "error")} for a in accs]
+
+
+def _my_arlo():
+    return [a for a in recorder.accounts_view() if _own_account("arlo", a["username"])] if recorder else []
+
+
+def _my_blink():
+    return [a for a in recorder.blink.accounts_view() if _own_account("blink", a["username"])] if recorder else []
+
+
+def _may_add(brand, username, saved):
+    """None if the viewer may add (or re-enter the password of) this account, else why not."""
+    key = users.account_key(brand, username)
+    exists = any(a["username"].lower() == username.strip().lower() for a in saved)
+    if users.taken_by_other(key, g.viewer, exists):
+        return f"{username} is already on BCN, added by someone else."
+    return None
 
 
 @app.get("/connect")
 @_auth
 def connect():
     from . import blink
-    accounts = recorder.accounts_view() if recorder else []
-    blink_accounts = recorder.blink.accounts_view() if recorder else []
+    accounts = _my_arlo()
+    blink_accounts = _my_blink()
     return render_template("connect.html", accounts=accounts, blink_accounts=blink_accounts,
                            state=_connect_state(accounts + blink_accounts),
                            blink_available=blink.AVAILABLE, blink_poll=blink.POLL_SECONDS)
@@ -286,7 +475,12 @@ def connect_submit():
     if not user or not pw:
         flash("Enter both the Arlo email and password.", "error")
         return redirect(url_for("connect"))
+    why = _may_add("arlo", user, arlo_login.accounts())
+    if why:
+        flash(why, "error")
+        return redirect(url_for("connect"))
     recorder.add(user, pw)
+    users.claim(users.account_key("arlo", user), g.viewer)
     flash(f"Signing in to Arlo as {user}…", "ok")
     return redirect(url_for("connect"))
 
@@ -294,6 +488,9 @@ def connect_submit():
 @app.post("/connect/<aid>/code")
 @_auth
 def connect_code(aid):
+    a = arlo_login.get(aid)
+    if not a or not _own_account("arlo", a["username"]):
+        abort(404)
     arlo_login.submit_code(aid, request.form.get("code", ""))
     flash("Code sent to Arlo.", "ok")
     return redirect(url_for("connect"))
@@ -303,6 +500,8 @@ def connect_code(aid):
 @_auth
 def connect_signout(aid):
     a = arlo_login.get(aid)
+    if not a or not _own_account("arlo", a["username"]):
+        abort(404)
     recorder.sign_out(aid)
     flash(f"Signed out of {a['username'] if a else 'that account'}. Its saved clips are still here.", "ok")
     return redirect(url_for("connect"))
@@ -322,11 +521,17 @@ def connect_blink():
     if not user or not pw:
         flash("Enter both the Blink email and password.", "error")
         return redirect(url_for("connect") + "#blink")
+    from . import blink
+    why = _may_add("blink", user, blink.accounts())
+    if why:
+        flash(why, "error")
+        return redirect(url_for("connect") + "#blink")
     try:
         recorder.blink.add(user, pw)
     except RuntimeError as e:
         flash(str(e), "error")
         return redirect(url_for("connect") + "#blink")
+    users.claim(users.account_key("blink", user), g.viewer)
     flash(f"Signing in to Blink as {user}…", "ok")
     return redirect(url_for("connect") + "#blink")
 
@@ -334,6 +539,10 @@ def connect_blink():
 @app.post("/connect/blink/<aid>/code")
 @_auth
 def connect_blink_code(aid):
+    from . import blink
+    a = blink.get_account(aid)
+    if not a or not _own_account("blink", a["username"]):
+        abort(404)
     recorder.blink.submit_code(aid, request.form.get("code", ""))
     flash("Code sent to Blink.", "ok")
     return redirect(url_for("connect") + "#blink")
@@ -344,6 +553,8 @@ def connect_blink_code(aid):
 def connect_blink_signout(aid):
     from . import blink
     a = blink.get_account(aid)
+    if not a or not _own_account("blink", a["username"]):
+        abort(404)
     recorder.blink.sign_out(aid)
     flash(f"Signed out of Blink ({a['username'] if a else 'that account'}). Its saved clips are still here.", "ok")
     return redirect(url_for("connect") + "#blink")
@@ -353,24 +564,41 @@ def connect_blink_signout(aid):
 @app.get("/connect/ip")
 @_auth
 def ipcams_page():
-    return render_template("ipcams.html", cams=recorder.ipcams.cameras_view() if recorder else [],
-                           saved={c["id"]: c for c in ipcam.cameras()})
+    return render_template("ipcams.html", cams=_my_ipcams(),
+                           saved={c["id"]: c for c in ipcam.cameras() if _own_ipcam(c["id"])})
+
+
+def _own_ipcam(cid):
+    return users.can_use(users.ipcam_key(cid), g.viewer)
+
+
+def _my_ipcams():
+    return [c for c in recorder.ipcams.cameras_view() if _own_ipcam(c["id"])] if recorder else []
 
 
 @app.get("/connect/ip/state")
 @_auth
 def ipcams_state():
-    return jsonify(recorder.ipcams.cameras_view() if recorder else [])
+    return jsonify(_my_ipcams())
 
 
 @app.post("/connect/ip")
 @_auth
 def ipcams_add():
+    # The same address (and channel) as a camera someone else added would replace theirs.
+    host, _ = ipcam.clean_host(request.form.get("host"))
+    host = host or urlsplit((request.form.get("rtsp_url") or "").strip()).hostname or ""
+    clash = [c for c in ipcam.cameras() if host and c.get("host") == host and not _own_ipcam(c["id"])]
+    if clash:
+        flash(f"{host} is already on BCN, added by someone else.", "error")
+        return redirect(url_for("ipcams_page"))
     try:
         ids = recorder.ipcams.add(request.form)
     except ValueError as e:
         flash(str(e), "error")
         return redirect(url_for("ipcams_page"))
+    for cid in ids:
+        users.claim(users.ipcam_key(cid), g.viewer)
     flash(f"Added {len(ids)} camera{'' if len(ids) == 1 else 's'}. BCN is looking for the video now; "
           "this page updates on its own (finding an unknown camera can take a minute).", "ok")
     return redirect(url_for("ipcams_page"))
@@ -379,6 +607,8 @@ def ipcams_add():
 @app.post("/connect/ip/<cid>/<action>")
 @_auth
 def ipcams_action(cid, action):
+    if not ipcam.get(cid) or not _own_ipcam(cid):
+        abort(404)
     if action == "remove":
         c = ipcam.get(cid)
         recorder.ipcams.remove(cid)
@@ -396,14 +626,91 @@ def ipcams_action(cid, action):
 
 @app.post("/connect/ip/find")
 @_auth
+@_admin_only
 def ipcams_find():
     """Cameras on this network that answer ONVIF or Hikvision/Laview SADP discovery."""
     return jsonify(ipcam.discover())
 
 
+# --- People: Google sign-in, who may get in, and what they added ---------------------------
+def _added_by():
+    """uid -> the accounts and IP cameras that person added."""
+    out = {}
+    for key, uid in users.owners().items():
+        brand, _, name = key.partition(":")
+        if brand == "ipcam":
+            c = ipcam.get(name)
+            name = c["name"] if c else name
+        out.setdefault(uid, []).append({"brand": brand, "name": name})
+    return out
+
+
+@app.get("/people")
+@_auth
+@_admin_only
+def people():
+    gs = users.google()
+    people = sorted(users.users().items(), key=lambda kv: (kv[1].get("approved", False), kv[1].get("created", 0)))
+    return render_template("people.html", g_settings=gs, on=users.enabled(), people=people, added=_added_by(),
+                           redirect_uri=users.redirect_uri(), has_secret=bool(gs["client_secret"]))
+
+
+@app.post("/people/google")
+@_auth
+@_admin_only
+def people_google():
+    f = request.form
+    if f.get("action") == "off":
+        users.turn_off()
+        flash("Google sign-in is off. BCN works like before (home network, and the away-from-home password).", "ok")
+        return redirect(url_for("people"))
+    email = f.get("owner_email", "").strip()
+    if f.get("action") == "home":
+        users.save_google(home_trusted=f.get("home_trusted") == "1")
+        flash("Saved.", "ok")
+        return redirect(url_for("people") + "#home")
+    if email and "@" not in email:
+        flash("The owner's Google account is an email address.", "error")
+        return redirect(url_for("people"))
+    base = f.get("base_url", "").strip()
+    if base and not base.startswith("https://"):
+        flash("The public address starts with https:// (Google only sends people back to https).", "error")
+        return redirect(url_for("people"))
+    users.save_google(client_id=f.get("client_id", ""), client_secret=f.get("client_secret", ""),
+                      owner_email=email, base_url=base or None)
+    flash("Saved. Google sign-in is on: sign in with the owner's Google account to finish."
+          if users.enabled() else "Saved. Fill in all three to turn Google sign-in on.", "ok")
+    return redirect(url_for("people"))
+
+
+@app.post("/people/<uid>/<action>")
+@_auth
+@_admin_only
+def people_action(uid, action):
+    u = users.get(uid)
+    if not u:
+        abort(404)
+    if action == "approve":
+        users.update(uid, approved=True)
+        flash(f"{u['email']} can sign in now and add their own cameras.", "ok")
+    elif action == "block":
+        users.update(uid, approved=False)
+        flash(f"{u['email']} can't get in any more.", "ok")
+    elif action in ("admin", "user"):
+        users.update(uid, role=action)
+        flash(f"{u['email']} {'sees every camera now' if action == 'admin' else 'sees only their own cameras now'}.", "ok")
+    elif action == "remove":
+        users.remove(uid)
+        flash(f"Removed {u['email']}. The accounts they added stay and are yours now.", "ok")
+    else:
+        abort(404)
+    return redirect(url_for("people"))
+
+
 # --- notification settings ---------------------------------------------------
 @app.get("/settings")
 @_auth
+@_admin_only
 def settings():
     return render_template("settings.html", s=notify.current(), sms_ready=notify.sms_ready(),
                            results=None, storage=store.storage_state(), remote=remote.settings(), remote_on=remote.enabled(),
@@ -412,6 +719,7 @@ def settings():
 
 @app.post("/settings/number")
 @_auth
+@_admin_only
 def add_number():
     raw = request.form.get("number", "")
     num = notify.normalize_number(raw)
@@ -435,6 +743,7 @@ def add_number():
 
 @app.post("/settings/number/<path:num>/<action>")
 @_auth
+@_admin_only
 def number_action(num, action):
     s = notify.current()
     for n in s["numbers"]:
@@ -471,6 +780,7 @@ def _apply_form():
 
 @app.post("/settings/storage")
 @_auth
+@_admin_only
 def storage_settings():
     f = request.form
     try:
@@ -484,6 +794,7 @@ def storage_settings():
 
 @app.post("/settings/remote")
 @_auth
+@_admin_only
 def remote_settings():
     user, pw = request.form.get("remote_user", "").strip(), request.form.get("remote_password", "")
     if request.form.get("action") == "off":
@@ -502,6 +813,7 @@ def remote_settings():
 
 @app.post("/settings")
 @_auth
+@_admin_only
 def save_settings():
     _apply_form()
     flash("Saved.", "ok")
@@ -510,6 +822,7 @@ def save_settings():
 
 @app.post("/settings/test")
 @_auth
+@_admin_only
 def test_alert():
     _apply_form()  # test what's on screen
     return render_template("settings.html", s=notify.current(), sms_ready=notify.sms_ready(),
@@ -521,7 +834,7 @@ def test_alert():
 @_auth
 def clip(key):
     row = store.get(key)
-    if not row:
+    if not row or not _can_cam(row["camera_id"]):
         abort(404)
     return render_template("clip.html", c=row)
 
@@ -529,12 +842,18 @@ def clip(key):
 @app.route("/media/<path:rel>")
 @_auth
 def media(rel):
+    if _allowed() is not None:
+        row = store.by_file(rel)
+        if not row or not _can_cam(row["camera_id"]):
+            abort(404)
     return send_from_directory(config.CLIPS_DIR, rel, conditional=True)
 
 
 @app.post("/clip/<path:key>/star")
 @_auth
 def star(key):
+    if not _can_clip(key):
+        abort(404)
     store.set_starred(key, request.form.get("on") == "1")
     return redirect(request.referrer or url_for("index"))
 
@@ -542,6 +861,8 @@ def star(key):
 @app.post("/clip/<path:key>/delete")
 @_auth
 def delete(key):
+    if not _can_clip(key):
+        abort(404)
     store.delete(key)
     return redirect(url_for("index"))
 
@@ -549,7 +870,7 @@ def delete(key):
 @app.post("/clips/bulk")
 @_auth
 def bulk():
-    keys = request.form.getlist("key")
+    keys = _mine(request.form.getlist("key"))
     action = request.form.get("action")
     back = request.form.get("next") or url_for("index")
     if not back.startswith("/"):
@@ -589,14 +910,14 @@ def api_clips():
     cams = _account_cameras(a["account"]) if a.get("account") else None
     if cams is not None and not cams:
         return jsonify([])
-    return jsonify(store.query(a.get("camera") or None, a.get("day") or None, a.get("starred") == "1",
-                               limit=limit, offset=offset, camera_ids=cams))
+    return jsonify(_query(a.get("camera") or None, a.get("day") or None, a.get("starred") == "1",
+                          limit=limit, offset=offset, camera_ids=cams))
 
 
 # --- BCN (the web page and the phone app) -------------------------------------
 def _cams_full():
     """Cameras with everything the BCN page shows on each card."""
-    cams = recorder.cameras_view() if recorder else []
+    cams = _visible()
     last = {}
     for c in cams:
         rows = store.query(c["id"], limit=1)
@@ -621,9 +942,10 @@ def api_status():
                     "needs_login": bool(s.get("needs_login")), "error": s.get("error"),
                     "waiting_for_code": [f'{a["brand"].capitalize()} ({a["username"]})' for a in _accounts_list()
                                          if a["waiting_for_code"]],
-                    "last_sweep": s.get("last_sweep"), "modes": recorder.modes() if recorder else {},
-                    "stats": store.stats(), "storage": store.storage_state(), "cameras": _cams_full(),
-                    "clip_cameras": store.cameras(),
+                    "last_sweep": s.get("last_sweep"),
+                    "modes": recorder.modes() if recorder and g.viewer["admin"] else {},
+                    "stats": store.stats(_allowed()), "storage": store.storage_state(), "cameras": _cams_full(),
+                    "clip_cameras": [c for c in store.cameras() if _can_cam(c["camera_id"])],
                     "alerts_need_setup": not active_numbers_or_channel(notify.current()),
                     "has_photo": True, "custom_photo": os.path.exists(_photo_path()),
                     "has_apk": os.path.exists(_apk_path()),
@@ -633,7 +955,7 @@ def api_status():
 @app.post("/api/camera/<cam_id>/record")
 @_auth
 def api_record(cam_id):
-    ok = bool(recorder and recorder.record_now(cam_id))
+    ok = bool(recorder and _can_cam(cam_id) and recorder.record_now(cam_id))
     return jsonify({"ok": ok, "error": None if ok else "That camera is already recording, or isn't available."})
 
 
@@ -655,6 +977,7 @@ def api_storage():
 
 @app.post("/api/storage")
 @_auth
+@_admin_only
 def api_storage_set():
     b = request.get_json(silent=True) or {}
     try:
@@ -669,6 +992,8 @@ def api_storage_set():
 @_auth
 def api_star(key):
     on = bool((request.get_json(silent=True) or {}).get("on", True))
+    if not _can_clip(key):
+        abort(404)
     store.set_starred(key, on)
     return jsonify({"ok": True, "starred": on})
 
@@ -676,14 +1001,14 @@ def api_star(key):
 @app.delete("/api/clip/<path:key>")
 @_auth
 def api_delete(key):
-    return jsonify({"ok": store.delete(key)})
+    return jsonify({"ok": _can_clip(key) and store.delete(key)})
 
 
 @app.post("/api/clips/bulk")
 @_auth
 def api_bulk():
     b = request.get_json(silent=True) or {}
-    keys, action = [str(k) for k in b.get("keys") or []], b.get("action")
+    keys, action = _mine([str(k) for k in b.get("keys") or []]), b.get("action")
     if action == "delete":
         n = sum(1 for k in keys if store.delete(k))
     elif action in ("star", "unstar"):
@@ -706,7 +1031,7 @@ def _live_json(s):
 @app.post("/api/camera/<cam_id>/live")
 @_auth
 def api_live_start(cam_id):
-    cam = recorder.camera(cam_id) if recorder else None
+    cam = recorder.camera(cam_id) if recorder and _can_cam(cam_id) else None
     if not cam and str(cam_id).startswith("blink-"):
         return jsonify({"state": "error", "error": "Live view isn't available for Blink cameras here. Use the Blink app."}), 404
     if not cam:
@@ -717,12 +1042,16 @@ def api_live_start(cam_id):
 @app.get("/api/camera/<cam_id>/live")
 @_auth
 def api_live_state(cam_id):
+    if not _can_cam(cam_id):
+        abort(404)
     return jsonify(_live_json(liveview.get(cam_id)))
 
 
 @app.get("/api/camera/<cam_id>/live.mjpg")
 @_auth
 def api_live_mjpg(cam_id):
+    if not _can_cam(cam_id):
+        abort(404)
     s = liveview.get(cam_id)
     if not s:
         cam = recorder.camera(cam_id) if recorder else None
@@ -741,7 +1070,13 @@ def api_events():
         since = int(request.args.get("since") or request.headers.get("Last-Event-ID-Time") or 0)
     except ValueError:
         since = 0
-    return Response(events.stream(since), mimetype="text/event-stream",
+    viewer = g.viewer
+    if viewer["admin"]:
+        allow = None
+    else:
+        def allow(ev):   # checked per event, so cameras added later show up without reconnecting
+            return users.allowed_cameras(viewer, _all_cams()).__contains__(ev.get("camera_id"))
+    return Response(events.stream(since, allow=allow), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
@@ -749,8 +1084,10 @@ def api_events():
 @_auth
 def api_test_phone():
     """Send a pretend motion alert to the phone app, using the newest clip's picture."""
-    rows = store.query(limit=1)
+    rows = _query(limit=1)
     r = rows[0] if rows else None
+    if not r and not g.viewer["admin"]:
+        return jsonify({"ok": False, "error": "There's no clip from your cameras to send yet."}), 400
     ev = events.publish("clip", camera=r["camera_name"] if r else "Test camera",
                         camera_id=r["camera_id"] if r else "test", key=r["key"] if r else None,
                         reason="test", started=int(time.time() * 1000),
@@ -788,6 +1125,7 @@ def photo():
 
 @app.post("/api/photo")
 @_auth
+@_admin_only
 def api_photo():
     import subprocess
     import tempfile
@@ -814,6 +1152,7 @@ def api_photo():
 
 @app.delete("/api/photo")
 @_auth
+@_admin_only
 def api_photo_delete():
     if os.path.exists(_photo_path()):
         os.remove(_photo_path())
@@ -871,6 +1210,7 @@ def _move_page(results=None, error=None):
 
 @app.get("/move")
 @_auth
+@_admin_only
 @_home_only
 def move():
     return _move_page()
@@ -878,6 +1218,7 @@ def move():
 
 @app.get("/move/export.zip")
 @_auth
+@_admin_only
 @_home_only
 def move_export():
     from . import migrate
@@ -891,6 +1232,7 @@ def move_export():
 
 @app.post("/api/move/import")
 @_auth
+@_admin_only
 @_home_only
 def move_import():
     """The export .zip as the raw request body (the page sends it with fetch, with progress)."""
@@ -921,6 +1263,7 @@ def move_import():
 
 @app.get("/api/move/state")
 @_auth
+@_admin_only
 @_home_only
 def move_state():
     from . import migrate
@@ -929,6 +1272,7 @@ def move_state():
 
 @app.post("/move/tunnel")
 @_auth
+@_admin_only
 @_home_only
 def move_tunnel():
     from . import tunnel
@@ -950,6 +1294,7 @@ def move_tunnel():
 
 @app.post("/move/retire")
 @_auth
+@_admin_only
 @_home_only
 def move_retire():
     """This server's job moved: stop signing in to Arlo here (only one place can at a time)."""
@@ -969,6 +1314,7 @@ def move_retire():
 # --- where clips are kept (Storage on the Alerts page; the move routine's -ClipsFolder) ----------
 @app.get("/api/storage/location")
 @_auth
+@_admin_only
 @_home_only
 def api_clips_location():
     from . import clips_location
@@ -977,6 +1323,7 @@ def api_clips_location():
 
 @app.post("/api/storage/location")
 @_auth
+@_admin_only
 @_home_only
 def api_clips_location_set():
     """{"path": "D:\\BCN clips"}: copies the clips there, switches to it and restarts."""
