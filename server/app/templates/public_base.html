@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block style %}
+  .tabbar, .topbar .nav { display:none !important; }
+  :root { --tabbar:0px !important; }
+  .doc { max-width:720px; margin:24px auto; line-height:1.55; }
+  .doc h1 { font-size:26px; margin:6px 0 10px; }
+  .doc h2 { font-size:19px; margin:22px 0 6px; }
+  .doc p, .doc li { color:var(--ink); }
+  .doc .muted { color:var(--muted); }
+  .doc footer { margin-top:30px; color:var(--muted); font-size:14px; }
+{% endblock %}

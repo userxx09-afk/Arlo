@@ -1,0 +1,32 @@
+{% extends "public_base.html" %}
+{% block title %}Privacy policy · BCN{% endblock %}
+{% block body %}
+<div class="doc">
+  <h1>Privacy policy</h1>
+  <p class="muted">BCN (Barb's Camera Notifications), at {{ request.host }}. Last updated November 19, 2026.</p>
+
+  <h2>What BCN collects</h2>
+  <ul>
+    <li><b>From your Google account</b>, when you sign in: your name and email address. BCN uses them only to know who you are, to let the owner approve you, and to show you your own cameras. BCN asks Google for nothing else (no contacts, files, calendar or mail).</li>
+    <li><b>Camera accounts you add</b> (Arlo, Blink, IP cameras): the sign-in details for them, so BCN can save your clips and send your alerts.</li>
+    <li><b>Your camera clips and pictures</b>, and when each camera saw motion.</li>
+    <li><b>Alert settings</b> you enter, such as a phone number for texts.</li>
+  </ul>
+
+  <h2>Where it's kept</h2>
+  <p>Everything is stored on the household's own server, not with a cloud service. It's reached over an encrypted connection (HTTPS).</p>
+
+  <h2>Who can see it</h2>
+  <p>You see only the cameras and clips from the accounts you added. The owner and the admins they choose can see every camera on the server. BCN doesn't sell, rent or share your information, shows no ads, and doesn't use it to train anything. Information is only passed on where that's needed for the service itself: to your camera maker to fetch your clips, and to the text or notification service that delivers your alerts.</p>
+
+  <h2>Keeping and deleting</h2>
+  <p>Clips are kept until they're older than the server's storage limit, or until you delete them. You can sign out of a camera account at any time on the Accounts page. To have your account and everything from your cameras removed, ask the owner{% if contact %} at {{ contact }}{% endif %}.</p>
+
+  <h2>Google user data</h2>
+  <p>BCN's use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+  <h2>Questions</h2>
+  <p>{% if contact %}Email {{ contact }}.{% else %}Ask the owner of this BCN.{% endif %}</p>
+  <footer><a href="{{ url_for('about') }}">About BCN</a></footer>
+</div>
+{% endblock %}
