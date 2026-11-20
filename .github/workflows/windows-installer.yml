@@ -15,7 +15,7 @@ on:
       - '.github/workflows/windows-installer.yml'
 
 permissions:
-  contents: read
+  contents: write   # the fallback release below, in this repo
 
 concurrency:
   group: windows-installer
@@ -115,6 +115,8 @@ jobs:
           path: dist/CameraKeeper-Setup.exe
 
       - name: Publish to the camera-keeper-windows release in prod
+        id: publish
+        continue-on-error: true
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.PROD_REPO_TOKEN }}
@@ -141,3 +143,20 @@ jobs:
           }
           gh release upload $tag dist\CameraKeeper-Setup.exe --clobber
           "Download: https://github.com/$env:GH_REPO/releases/download/$tag/CameraKeeper-Setup.exe" >> $env:GITHUB_STEP_SUMMARY
+
+      # If PROD_REPO_TOKEN has expired, keep the installer on a release in this repo instead,
+      # so it can be copied to prod by hand.
+      - name: Fallback - put the installer on a release in this repo
+        if: steps.publish.outcome == 'failure'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = 'camera-keeper-windows-build'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Camera Keeper for Windows (build)" --notes "Built from $env:GITHUB_SHA. PROD_REPO_TOKEN could not publish to prod." --prerelease --target $env:GITHUB_SHA
+          }
+          gh release upload $tag dist\CameraKeeper-Setup.exe --clobber
+          "PROD_REPO_TOKEN failed. Installer is on the $tag release in this repo." >> $env:GITHUB_STEP_SUMMARY
