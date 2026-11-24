@@ -87,6 +87,9 @@
   .modal .stage { flex:1; min-height:0; display:grid; place-items:center; padding:0 12px; position:relative; }
   .modal .stage video, .modal .stage img.live { max-width:100%; max-height:100%; width:auto; border-radius:10px; background:#000; display:block; }
   .modal .stage img.live { min-width:min(100%, 640px); aspect-ratio:16/9; object-fit:contain; }
+  /* The camera's latest snapshot shows (dimmed) while the live picture starts. */
+  .modal .stage img.live.snap { background-size:contain; background-position:center; background-repeat:no-repeat; }
+  #live.waiting .over { background:rgba(0,0,0,.45); color:#fff; border-radius:10px; }
   .modal .mfoot { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:12px 16px; padding-bottom:max(14px, env(safe-area-inset-bottom)); }
   .x { width:40px; height:40px; padding:0; font-size:20px; flex:none; }
   .over { position:absolute; inset:0; display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; text-align:center; padding:20px; color:var(--muted); pointer-events:none; }
@@ -473,9 +476,10 @@
   async function openLive(id) {
     const c = st.cams.find((x) => x.id === id); if (!c) return;
     liveCam = id; gotFrame = false;
+    showSnap(c.thumb);
     $("#l-title").textContent = c.name;
     $("#l-sub").innerHTML = "Connecting…";
-    liveMsg(c.capturing ? "Showing the clip being recorded now…" : "Waking up the camera… this takes about 10 seconds.", true, false);
+    liveMsg(c.capturing ? "Showing the clip being recorded now…" : "Waking up the camera… this takes a few seconds.", true, false);
     $("#live").classList.add("open");
     if (location.hash !== "#live") history.pushState({ modal: 1 }, "", "#live");
     const r = await api(`/api/camera/${encodeURIComponent(id)}/live`, { method: "POST" });
@@ -486,13 +490,18 @@
     livePoll = setInterval(pollLive, 1500);
     loadStatus();
   }
-  limg.addEventListener("load", () => { if (limg.src && liveCam) { gotFrame = true; liveMsg(""); } });
+  function showSnap(url) {
+    limg.classList.toggle("snap", !!url);
+    limg.style.backgroundImage = url ? `url("${url}")` : "";
+    $("#live").classList.toggle("waiting", !!url);
+  }
+  limg.addEventListener("load", () => { if (limg.src && liveCam) { gotFrame = true; liveMsg(""); showSnap(null); } });
   async function pollLive() {
     if (!liveCam) return;
     const r = await api(`/api/camera/${encodeURIComponent(liveCam)}/live`).catch(() => null);
     if (!r || !liveCam) return;
     if (r.state === "live") {
-      if (!gotFrame) { gotFrame = true; liveMsg(""); }
+      if (!gotFrame) { gotFrame = true; liveMsg(""); showSnap(null); }
       const m = Math.floor(r.seconds_left / 60), s = String(r.seconds_left % 60).padStart(2, "0");
       $("#l-sub").innerHTML = `<span class="livebadge"><i></i>LIVE</span> · pauses in ${m}:${s} to save the battery`;
     } else if (r.state === "starting") {
@@ -508,6 +517,7 @@
   function closeLive() {
     clearInterval(livePoll); liveCam = null;
     limg.removeAttribute("src"); limg.src = "data:,";   // drops the connection, so the camera stops streaming
+    showSnap(null);
     $("#live").classList.remove("open");
     setTimeout(loadStatus, 6000);
   }
