@@ -23,6 +23,8 @@ FPS = 8
 
 _sessions = {}
 _lock = threading.Lock()
+_failed = {}             # camera id -> (time, why): the last live view that never got a picture
+FAILED_SECONDS = 60      # how long viewers are told why, after it gave up
 
 
 def _read_parts(stdout):
@@ -111,6 +113,10 @@ class Session(threading.Thread):
             with _lock:
                 if _sessions.get(self.cam.device_id) is self:
                     del _sessions[self.cam.device_id]
+                if self.state == "error":
+                    _failed[self.cam.device_id] = (time.time(), self.error or "No picture from the camera")
+                else:
+                    _failed.pop(self.cam.device_id, None)
             log.info("%s: live view ended", self.cam.name)
 
     def _source(self):
@@ -186,6 +192,13 @@ def start(recorder, cam):
 def get(cam_id):
     with _lock:
         return _sessions.get(cam_id)
+
+
+def failed(cam_id):
+    """Why the camera's last live view gave up without a picture, for a minute afterwards."""
+    with _lock:
+        f = _failed.get(cam_id)
+    return f[1] if f and time.time() - f[0] < FAILED_SECONDS else None
 
 
 def viewing(cam_id):

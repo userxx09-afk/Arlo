@@ -1110,7 +1110,10 @@ def api_live_start(cam_id):
 def api_live_state(cam_id):
     if not _can_cam(cam_id):
         abort(404)
-    return jsonify(_live_json(liveview.get(cam_id)))
+    s = liveview.get(cam_id)
+    if not s and liveview.failed(cam_id):    # it gave up: say why, not just "off"
+        return jsonify({"state": "error", "error": liveview.failed(cam_id), "seconds_left": 0, "viewers": 0})
+    return jsonify(_live_json(s))
 
 
 @app.get("/api/camera/<cam_id>/live.mjpg")
