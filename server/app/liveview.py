@@ -124,10 +124,12 @@ class Session(threading.Thread):
         if not url:
             raise RuntimeError("Arlo didn't start a live stream. Is the camera online?")
         self.opened_stream = True
-        args = []
-        if url.startswith(("rtsp://", "rtsps://")):
-            args += ["-rtsp_transport", "tcp", "-timeout", "10000000"]
-        return args + ["-probesize", "1000000", "-analyzeduration", "1500000", "-i", url]
+        from .capture import stream_input_args
+        # Live view: look at less of the stream before the first picture (Arlo says up front
+        # what's in it), and don't buffer, so the picture shows up sooner.
+        return stream_input_args(url) + ["-fflags", "nobuffer", "-flags", "low_delay",
+                                         "-probesize", "256000", "-analyzeduration", "500000",
+                                         "-i", url]
 
     def _run(self):
         log.info("%s: live view starting", self.cam.name)

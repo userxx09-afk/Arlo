@@ -29,10 +29,38 @@ def slug(name):
     return "".join(ch if ch.isalnum() else "_" for ch in name).strip("_") or "camera"
 
 
-def _ffmpeg_record(url, out, seconds, live=None):
-    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+_TLS_CHECK = None
+
+
+def _tls_verify_on():
+    """Newer ffmpeg builds (late 2026 on) check TLS certificates by default, and Arlo's rtsps
+    stream servers don't pass that check: every live view and recording then fails with
+    "Error opening input files". Older builds don't check and may not take the option, so
+    only turn it off where this ffmpeg checks by default."""
+    global _TLS_CHECK
+    if _TLS_CHECK is None:
+        try:
+            out = subprocess.run(["ffmpeg", "-hide_banner", "-h", "protocol=tls"],
+                                 capture_output=True, text=True, timeout=10).stdout
+            line = next((l for l in out.splitlines() if "tls_verify" in l), "")
+            _TLS_CHECK = "default true" in line or "default 1" in line
+        except Exception:
+            _TLS_CHECK = False
+    return _TLS_CHECK
+
+
+def stream_input_args(url):
+    """ffmpeg options to put before -i for an Arlo stream URL."""
+    args = []
     if url.startswith(("rtsp://", "rtsps://")):
-        cmd += ["-rtsp_transport", "tcp", "-timeout", "10000000"]
+        args += ["-rtsp_transport", "tcp", "-timeout", "10000000"]
+    if url.startswith("rtsps://") and _tls_verify_on():
+        args += ["-tls_verify", "0"]
+    return args
+
+
+def _ffmpeg_record(url, out, seconds, live=None):
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", *stream_input_args(url)]
     # Look at the stream for ~1.5s instead of ffmpeg's default 5s before recording, so the
     # clip (and GarysTV's pop-up) starts sooner. Arlo's stream says up front what's in it.
     cmd += ["-probesize", "1000000", "-analyzeduration", "1500000"]
@@ -74,10 +102,11 @@ def _probe_duration(path):
 def clip_paths(cam, started):
     """Where a clip that started at `started` is saved: (key, rel_video, rel_thumb)."""
     when = datetime.fromtimestamp(started)
-    rel_dir = os.path.join(slug(cam.name), when.strftime("%Y-%m-%d"))
+    # Saved paths always use "/", also on Windows: they go into /media/... links.
+    rel_dir = f"{slug(cam.name)}/{when:%Y-%m-%d}"
     base = when.strftime("%H-%M-%S")
-    return (f"{cam.device_id}:{int(started * 1000)}", os.path.join(rel_dir, base + ".mp4"),
-            os.path.join(rel_dir, base + ".jpg"))
+    return (f"{cam.device_id}:{int(started * 1000)}", f"{rel_dir}/{base}.mp4",
+            f"{rel_dir}/{base}.jpg")
 
 
 def _thumb(video, jpg):
