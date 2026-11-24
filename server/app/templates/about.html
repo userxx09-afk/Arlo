@@ -1,0 +1,13 @@
+{% extends "public_base.html" %}
+{% block title %}BCN · Barb's Camera Notifications{% endblock %}
+{% block body %}
+<div class="doc">
+  <h1>BCN: Barb's Camera Notifications</h1>
+  <p>BCN keeps copies of the clips from a household's own Arlo, Blink and IP cameras on the household's own server, shows them on a private web page, lets you watch a camera live, and sends a notification the moment a camera sees motion.</p>
+  <p>It's a private, invite-only service run for family and friends. It isn't a public product and there's nothing to buy.</p>
+  <h2>Signing in</h2>
+  <p>People sign in with their Google account. The owner lets each person in once. After that, each person sees only the cameras they added themselves.</p>
+  <p><a class="btn primary" href="{{ url_for('login') }}">Sign in</a></p>
+  <footer><a href="{{ url_for('privacy') }}">Privacy policy</a>{% if contact %} · Contact: {{ contact }}{% endif %}</footer>
+</div>
+{% endblock %}

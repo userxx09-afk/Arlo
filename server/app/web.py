@@ -32,7 +32,7 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 # --- who is looking: Google sign-in, the home network, or the away-from-home password -------
 # Endpoints anyone may open (the sign-in pages themselves).
 OPEN = {"login", "login_submit", "static", "manifest", "auth_google", "auth_google_callback", "waiting",
-        "logout", "health"}
+        "logout", "health", "about", "privacy"}
 ADMIN = {"admin": True, "uid": None, "email": None, "name": None}     # sees and changes everything
 API_PREFIXES = ("/api/", "/media/", "/live/", "/bcn.apk", "/ban.apk", "/photo", "/cameras.json", "/health")
 
@@ -185,6 +185,17 @@ def auth_google_callback():
     session["uid"], session["ustamp"] = uid, u["stamp"]
     log_web.info("signed in with Google: %s (%s)", u["email"], u["role"] if u["approved"] else "waiting")
     return redirect(nxt if u["approved"] else url_for("waiting"))
+
+
+# Google wants a public home page and privacy policy before anyone outside the test list can sign in.
+@app.get("/about")
+def about():
+    return render_template("about.html", contact=users.google()["owner_email"])
+
+
+@app.get("/privacy")
+def privacy():
+    return render_template("privacy.html", contact=users.google()["owner_email"])
 
 
 @app.get("/waiting")
