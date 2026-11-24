@@ -102,6 +102,8 @@ jobs:
             choco install innosetup -y --no-progress | Out-Null
             $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           }
+          # The app reads this to know its own version (app/updater.py).
+          Set-Content build\CameraKeeper\VERSION $version -Encoding ascii -NoNewline
           & $iscc "/DAppVersion=$version" server\windows\installer.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed ($LASTEXITCODE)" }
           Get-Item dist\CameraKeeper-Setup.exe | Format-List Name, Length
@@ -128,7 +130,7 @@ jobs:
           Download **CameraKeeper-Setup.exe** below and run it. Windows may say it protected your PC: click **More info → Run anyway**.
           Setup installs Camera Keeper with its own Python and ffmpeg, starts it at every boot (no window), and opens http://localhost:8090 where you sign in to Arlo.
 
-          To update, run the newest CameraKeeper-Setup.exe over the old one. Clips, settings and the Arlo sign-in (in C:\ProgramData\CameraKeeper) are kept, also when uninstalling.
+          Updates install by themselves (Alerts page > Updates), or run the newest CameraKeeper-Setup.exe over the old one. Clips, settings and the Arlo sign-in (in C:\ProgramData\CameraKeeper) are kept, also when uninstalling.
 
           Coming from **Arlo Keeper** (the name before the rename): run this setup over it. It moves the clips, settings and sign-ins from C:\ProgramData\ArloKeeper and removes the old program, task and Start-menu folder.
           "@
@@ -140,4 +142,8 @@ jobs:
             gh release edit $tag --title "Camera Keeper for Windows" --notes-file notes.md --latest=false
           }
           gh release upload $tag dist\CameraKeeper-Setup.exe --clobber
+          # Last, so installed copies only see the new version once its setup is there (app/updater.py).
+          $sha = (Get-FileHash dist\CameraKeeper-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          "$env:VERSION`nsha256=$sha" | Set-Content dist\version.txt -Encoding ascii -NoNewline
+          gh release upload $tag dist\version.txt --clobber
           "Download: https://github.com/$env:GH_REPO/releases/download/$tag/CameraKeeper-Setup.exe" >> $env:GITHUB_STEP_SUMMARY

@@ -2,7 +2,7 @@
 import logging
 import threading
 
-from . import clips_location, config, migrate, store, web
+from . import clips_location, config, migrate, store, updater, web
 from .accounts import Fleet
 
 
@@ -23,6 +23,8 @@ def main():
                     moved.get("at"))
     else:
         fleet.start_all()
+
+    updater.start()          # Windows: installs new versions from the prod release by itself
 
     from waitress import serve
     log.info("web viewer on port %d", config.WEB_PORT)

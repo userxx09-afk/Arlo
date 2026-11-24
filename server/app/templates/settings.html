@@ -144,6 +144,25 @@
   {% endif %}
 </section>
 
+<section class="panel" id="updates">
+  <h2>⬆️ Updates</h2>
+  {% if update.supported %}
+  <p>This is Camera Keeper {{ update.current }}.
+    {% if update.installing %}Installing {{ update.latest }} now; it restarts by itself in about a minute.
+    {% elif update.latest and update.latest != update.current %}Newest: {{ update.latest }}.
+    {% endif %}
+    {% if update.on %}New versions install by themselves (it checks every 6 hours). Clips and settings are kept.{% else %}Automatic updates are off.{% endif %}</p>
+  {% if update.error %}<p class="muted">Last check didn't work: {{ update.error }}</p>{% endif %}
+  <div class="row">
+    <form method="post" action="{{ url_for('update_settings') }}"><button>Check for updates</button></form>
+    <form method="post" action="{{ url_for('update_settings') }}"><input type="hidden" name="action" value="toggle">
+      <input type="hidden" name="on" value="{{ '0' if update.on else '1' }}"><button>{{ 'Turn off automatic updates' if update.on else 'Turn on automatic updates' }}</button></form>
+  </div>
+  {% else %}
+  <p>{% if update.current %}Camera Keeper {{ update.current }}. {% endif %}Updates install by themselves on Camera Keeper for Windows. On Ubuntu, run the installer from the camera-keeper-ubuntu release again.</p>
+  {% endif %}
+</section>
+
 {% if not outside %}
 <section class="panel">
   <h2>🚚 Move to another server</h2>
