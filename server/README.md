@@ -88,3 +88,11 @@ New API: `/api/status`, `/api/camera/<id>/live` (POST start, GET state), `/api/c
 `/api/camera/<id>/record`, `/api/clip/<key>/star`, `DELETE /api/clip/<key>`, `/api/clips/bulk`,
 `/api/events`, `/api/test-phone`, `/api/photo`. `/api/clips` also takes `offset` and `starred=1`.
 GarysTV's calls (`/api/cameras`, `/api/subscribe`, `/api/clips`, `/live/…`) are unchanged.
+
+For GarysTV (it sends `User-Agent: GarysTV/…`):
+- `/api/cameras` gives each camera `live` (can be watched live now: not Blink, not offline),
+  `thumb` (the newest clip's picture), `last_clip_ms`, `viewing`, `motion` and `capturing`.
+  GarysTV watches a camera live through `/api/camera/<id>/live` and `live.mjpg`, like the BCN page.
+- The household's TVs leave out cameras that belong to someone who isn't an admin, the same
+  as their motion pop-ups: not in the camera list, the clips, or live view.
+- `/api/clips` always gives paths with `/`, also for clips saved on Windows with `\`.

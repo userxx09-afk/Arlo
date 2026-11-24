@@ -259,6 +259,26 @@ got = next(gen)
 check("Bob's phone gets his camera's motion, not Barb's", '"B1"' in got and '"A1"' not in got)
 gen.close()
 
+# GarysTV (the household's TVs) leaves out Bob's cameras, like its motion pop-ups do.
+TV = {**HOME, "HTTP_USER_AGENT": "GarysTV/0.2"}
+r = client().get("/api/cameras", environ_base=TV)
+check("GarysTV's camera list leaves out Bob's", r.status_code == 200 and sorted(c["id"] for c in r.json["cameras"]) == ["A1"])
+check("GarysTV gets a live flag and the newest picture", r.json["cameras"][0]["live"] is True
+      and r.json["cameras"][0]["thumb"] == "/media/2026/A1.jpg")
+r = client().get("/api/clips", environ_base=TV)
+check("GarysTV's clips leave out Bob's", sorted(x["camera_id"] for x in r.json) == ["A1"])
+r = client().get("/api/camera/B1/live", environ_base=TV)
+check("GarysTV can't watch Bob's camera live", r.status_code == 404)
+r = client().get("/api/cameras", environ_base=HOME)
+check("the BCN page at home still lists them all", len(r.json["cameras"]) == 3)
+store.add({"key": "A1:5", "camera_id": "A1", "camera_name": "Barb porch", "created_ms": 5,
+           "video_path": "Barb_porch\\2026-11-01\\08-00-00.mp4", "thumb_path": "Barb_porch\\2026-11-01\\08-00-00.jpg", "size_bytes": 1})
+r = client().get("/api/clips?camera=A1", environ_base=TV)
+old = [x for x in r.json if x["key"] == "A1:5"]
+check("a clip saved on Windows with \\ comes back with /", old and old[0]["video_path"] == "Barb_porch/2026-11-01/08-00-00.mp4"
+      and old[0]["thumb_path"] == "Barb_porch/2026-11-01/08-00-00.jpg")
+store.delete("A1:5")
+
 # --- 5. Make Bob an admin; then remove him -------------------------------------------------------
 barb.post(f"/people/{bob_uid}/admin", base_url="https://bcn.tapper.co", environ_base=AWAY)
 bob, _ = google_sign_in("bob@gmail.com", "Bob")
