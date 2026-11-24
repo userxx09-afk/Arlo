@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_template, request,
                    send_from_directory, session, url_for)
 
-from . import arlo_login, config, events, garystv, google_auth, ipcam, liveview, notify, remote, store, users
+from . import arlo_login, config, events, garystv, google_auth, ipcam, liveview, notify, remote, store, updater, users
 
 app = Flask(__name__, template_folder="templates")
 log_web = logging.getLogger("web")
@@ -751,7 +751,36 @@ def people_action(uid, action):
 def settings():
     return render_template("settings.html", s=notify.current(), sms_ready=notify.sms_ready(),
                            results=None, storage=store.storage_state(), remote=remote.settings(), remote_on=remote.enabled(),
-                           outside=remote.is_remote(request))
+                           outside=remote.is_remote(request), update=updater.state())
+
+
+# --- updates (Windows): Alerts page > Updates ----------------------------------
+@app.get("/api/update")
+@_auth
+@_admin_only
+def api_update():
+    return jsonify(updater.state())
+
+
+@app.post("/settings/update")
+@_auth
+@_admin_only
+def update_settings():
+    f = request.form
+    if f.get("action") == "toggle":
+        updater.set_enabled(f.get("on") == "1")
+        flash("Automatic updates are on." if f.get("on") == "1" else "Automatic updates are off.", "ok")
+    elif not updater.supported():
+        flash("Updates install by themselves only on Camera Keeper for Windows.", "info")
+    else:
+        st = updater.check()
+        if st["error"]:
+            flash(f"Couldn't check for updates: {st['error']}", "error")
+        elif st["installing"]:
+            flash(f"Installing Camera Keeper {st['latest']}. It restarts by itself in about a minute.", "ok")
+        else:
+            flash(f"Camera Keeper {st['current']} is the newest.", "ok")
+    return redirect(url_for("settings") + "#updates")
 
 
 @app.post("/settings/number")
