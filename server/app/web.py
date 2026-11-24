@@ -842,6 +842,7 @@ def clip(key):
 @app.route("/media/<path:rel>")
 @_auth
 def media(rel):
+    rel = rel.replace("\\", "/")   # clips saved on Windows before paths always used "/"
     if _allowed() is not None:
         row = store.by_file(rel)
         if not row or not _can_cam(row["camera_id"]):

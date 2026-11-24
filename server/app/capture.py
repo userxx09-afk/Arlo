@@ -102,10 +102,11 @@ def _probe_duration(path):
 def clip_paths(cam, started):
     """Where a clip that started at `started` is saved: (key, rel_video, rel_thumb)."""
     when = datetime.fromtimestamp(started)
-    rel_dir = os.path.join(slug(cam.name), when.strftime("%Y-%m-%d"))
+    # Saved paths always use "/", also on Windows: they go into /media/... links.
+    rel_dir = f"{slug(cam.name)}/{when:%Y-%m-%d}"
     base = when.strftime("%H-%M-%S")
-    return (f"{cam.device_id}:{int(started * 1000)}", os.path.join(rel_dir, base + ".mp4"),
-            os.path.join(rel_dir, base + ".jpg"))
+    return (f"{cam.device_id}:{int(started * 1000)}", f"{rel_dir}/{base}.mp4",
+            f"{rel_dir}/{base}.jpg")
 
 
 def _thumb(video, jpg):

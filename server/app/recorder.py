@@ -307,11 +307,11 @@ class Recorder:
             return
 
         when = datetime.fromtimestamp(created / 1000)
-        rel_dir = os.path.join(_slug(cam.name), when.strftime("%Y-%m-%d"))
+        rel_dir = f"{_slug(cam.name)}/{when:%Y-%m-%d}"   # "/" also on Windows (used in links)
         os.makedirs(os.path.join(config.CLIPS_DIR, rel_dir), exist_ok=True)
         base_name = when.strftime("%H-%M-%S") + ("_usb" if source == "base_station" else "")
-        rel_video = os.path.join(rel_dir, base_name + ".mp4")
-        rel_thumb = os.path.join(rel_dir, base_name + ".jpg")
+        rel_video = f"{rel_dir}/{base_name}.mp4"
+        rel_thumb = f"{rel_dir}/{base_name}.jpg"
         abs_video = os.path.join(config.CLIPS_DIR, rel_video)
         abs_thumb = os.path.join(config.CLIPS_DIR, rel_thumb)
 
