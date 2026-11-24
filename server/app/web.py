@@ -262,9 +262,31 @@ def _all_cams():
     return recorder.cameras_view() if recorder else []
 
 
+def _is_tv():
+    """GarysTV (the household's TVs) says so in its User-Agent."""
+    return (request.headers.get("User-Agent") or "").startswith("GarysTV")
+
+
 def _allowed():
-    """Camera ids the viewer may see, or None for everything (admins, and before sign-in is on)."""
-    return users.allowed_cameras(g.viewer, _all_cams())
+    """Camera ids the viewer may see, or None for everything (admins, and before sign-in is on).
+
+    The household's TVs (GarysTV) don't show cameras that belong to someone who isn't an admin,
+    like their motion pop-ups (garystv.motion_started): not in the list, the clips or live view."""
+    cams = _all_cams()
+    a = users.allowed_cameras(g.viewer, cams)
+    if _is_tv():
+        a = {c["id"] for c in cams if not users.private_camera(c["id"])} if a is None \
+            else {i for i in a if not users.private_camera(i)}
+    return a
+
+
+def _slash(row):
+    """A clip row with "/" in its paths: clips saved on Windows before 1.0.14 used "\\", which
+    GarysTV doesn't accept in a /media/ link (and older Camera Keepers didn't serve)."""
+    for k in ("video_path", "thumb_path"):
+        if row.get(k):
+            row[k] = row[k].replace("\\", "/")
+    return row
 
 
 def _visible(cams=None):
@@ -313,11 +335,26 @@ def api_cameras():
     s = recorder.status if recorder else {}
     cams = _visible()
     return jsonify({"connected": bool(s.get("connected")),
-                    "modes": recorder.modes() if recorder and g.viewer["admin"] else {},
-                    "cameras": [{k: c.get(k) for k in ("id", "name", "model", "battery", "unavailable",
-                                                       "last_motion", "last_clip", "account")}
-                                | {"brand": c.get("brand") or "arlo"} for c in cams],
+                    "modes": recorder.modes() if recorder and g.viewer["admin"] and not _is_tv() else {},
+                    "cameras": [_tv_camera(c) for c in cams],
                     "accounts": _accounts_list()})
+
+
+def _tv_camera(c):
+    """One camera for GarysTV: what Settings > Cameras and Home > Cameras show.
+
+    live: it can be watched live now (not Blink, not offline). thumb: the newest clip's picture,
+    shown while the live picture starts. viewing: someone is watching it live already."""
+    brand = c.get("brand") or ("blink" if str(c.get("id")).startswith("blink-") else "arlo")
+    rows = store.query(c["id"], limit=1)
+    r = _slash(rows[0]) if rows else None
+    return ({k: c.get(k) for k in ("id", "name", "model", "battery", "unavailable", "last_motion", "last_clip",
+                                   "account", "motion", "capturing")}
+            | {"brand": brand,
+               "live": brand != "blink" and not c.get("no_live") and not c.get("unavailable"),
+               "viewing": liveview.viewing(c["id"]),
+               "thumb": f"/media/{r['thumb_path']}" if r and r.get("thumb_path") else None,
+               "last_clip_ms": r["created_ms"] if r else None})
 
 
 def _accounts_list():
@@ -910,8 +947,8 @@ def api_clips():
     cams = _account_cameras(a["account"]) if a.get("account") else None
     if cams is not None and not cams:
         return jsonify([])
-    return jsonify(_query(a.get("camera") or None, a.get("day") or None, a.get("starred") == "1",
-                          limit=limit, offset=offset, camera_ids=cams))
+    return jsonify([_slash(r) for r in _query(a.get("camera") or None, a.get("day") or None, a.get("starred") == "1",
+                                              limit=limit, offset=offset, camera_ids=cams)])
 
 
 # --- BCN (the web page and the phone app) -------------------------------------
