@@ -56,7 +56,7 @@ POLL_MINUTES = _int("POLL_MINUTES", 5)
 USE_BASE_STATION_STORAGE = _bool("USE_BASE_STATION_STORAGE", True)
 
 # --- Notifications ----------------------------------------------------------
-NOTIFY_ON_MOTION = _bool("NOTIFY_ON_MOTION", False)   # instant, before the clip exists
+NOTIFY_ON_MOTION = _bool("NOTIFY_ON_MOTION", True)    # instant, before the clip exists
 NOTIFY_ON_CLIP = _bool("NOTIFY_ON_CLIP", True)        # once the clip is saved
 NOTIFY_COOLDOWN_SECONDS = _int("NOTIFY_COOLDOWN_SECONDS", 60)  # per camera
 
