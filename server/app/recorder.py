@@ -355,7 +355,7 @@ class Recorder:
 
         # Only alert on fresh clips, not the first-run back-fill.
         s = notify.current()
-        if s["on_clip"] and time.time() * 1000 - created < 15 * 60 * 1000:
+        if s["on_clip"] and time.time() * 1000 - created < 15 * 60 * 1000 and notify.clip_alert_needed(cam.device_id, s):
             what = video.object_type or "Motion"
             pub = (s["public_url"] or "").rstrip("/")
             link = f"{pub}/clip/{key}" if pub else None

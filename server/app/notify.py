@@ -59,14 +59,39 @@ def _defaults():
         "public_url": config.PUBLIC_URL,
         "on_clip": config.NOTIFY_ON_CLIP, "on_motion": config.NOTIFY_ON_MOTION,
         "motion_fallback": True,
+        "clip_too": False,        # with instant alerts on: also alert when the clip is saved
         "cooldown": config.NOTIFY_COOLDOWN_SECONDS,
     }
 
 
+# Alerts used to wait for the saved clip (20 s of video, then converting), so they came in
+# after the people were already inside. Once, turn on the instant alert for settings saved
+# before that changed; it can be turned off again on the Alerts page.
+INSTANT_KEY = "notify_instant_v1"
+# After an instant alert, the saved clip's alert for that camera is skipped for this long
+# (same event; one text, not two). "Also when the clip is saved" sends both.
+FOLLOWUP_SECONDS = 180
+
+
 def current():
     s = _defaults()
-    s.update(store.get_setting(SETTINGS_KEY, {}) or {})
+    saved = store.get_setting(SETTINGS_KEY, {}) or {}
+    if saved and not store.get_setting(INSTANT_KEY):
+        saved["on_motion"] = True
+        store.set_setting(SETTINGS_KEY, saved)
+        store.set_setting(INSTANT_KEY, True)
+    s.update(saved)
     return s
+
+
+def clip_alert_needed(camera_id, s=None):
+    """False if an instant motion alert already went out for this camera just now."""
+    s = s or current()
+    if not s.get("on_motion") or s.get("clip_too"):
+        return True
+    with _lock:
+        last = _last_sent.get((camera_id, "motion"), 0)
+    return time.time() - last > FOLLOWUP_SECONDS
 
 
 def save(s):

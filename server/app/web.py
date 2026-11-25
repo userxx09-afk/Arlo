@@ -835,7 +835,7 @@ def _apply_form():
             s[field] = f.get(field).strip()
         if f.get(f"clear_{field}"):
             s[field] = ""
-    for field in ("on_clip", "on_motion", "motion_fallback"):
+    for field in ("on_clip", "on_motion", "motion_fallback", "clip_too"):
         s[field] = f.get(field) == "1"
     try:
         s["cooldown"] = max(0, int(f.get("cooldown", s["cooldown"])))

@@ -193,9 +193,10 @@
 
 <section class="panel">
   <h2>When to alert</h2>
-  <label class="check"><input type="checkbox" name="on_clip" value="1" {{ 'checked' if s.on_clip }}> When a clip is saved</label>
+  <label class="check"><input type="checkbox" name="on_motion" value="1" {{ 'checked' if s.on_motion }}> The instant motion starts (recommended: about 20 seconds sooner than waiting for the clip)</label>
+  <label class="check"><input type="checkbox" name="on_clip" value="1" {{ 'checked' if s.on_clip }}> When a clip is saved (with its picture){% if s.on_motion %}, for cameras that didn't just send an instant alert{% endif %}</label>
+  <label class="check"><input type="checkbox" name="clip_too" value="1" {{ 'checked' if s.clip_too }}> With instant alerts on, also send the clip alert (two alerts per motion)</label>
   <label class="check"><input type="checkbox" name="motion_fallback" value="1" {{ 'checked' if s.motion_fallback }}> If a camera sees motion but no clip arrives within 2 minutes (cameras with no recording available)</label>
-  <label class="check"><input type="checkbox" name="on_motion" value="1" {{ 'checked' if s.on_motion }}> The instant motion starts (faster, no picture, more texts)</label>
   <div class="field" style="margin-top:10px"><label>Quiet time per camera</label>
     <div class="row"><input type="number" name="cooldown" min="0" value="{{ s.cooldown }}" style="width:90px"><span class="muted">seconds between alerts from the same camera</span></div></div>
   <div class="field"><label>Link in alerts</label><input type="url" name="public_url" value="{{ s.public_url }}" placeholder="http://192.168.5.50:8080"></div>
